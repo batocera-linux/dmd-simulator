@@ -60,7 +60,7 @@ class DmdPlayer:
     def sendImageFile(client, file, width, height, once):
         anim_cache = None
         with Image.open(file) as im:
-            if im.is_animated:
+            if hasattr(im, 'is_animated') and im.is_animated:
                 # just fill the cache
                 anim_cache = []
                 for n in range(im.n_frames):
