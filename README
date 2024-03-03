@@ -1,0 +1,16 @@
+
+# build
+$ docker build -t dmd-simulator .
+
+# execute
+$ docker run -ti -p 53533:53533 -p 53534:53534 -p 8080:8080 dmd-simulator
+
+# browser : http://localhost:8080/?size=12&top=200&mode=led
+# mode includes: led | flat
+# size : pixel size
+# top  : border from the top
+
+# play an image
+python3 dmd-play.py -f file.png
+python3 dmd-play.py -f file.gif
+python3 dmd-play.py -t "My text"
