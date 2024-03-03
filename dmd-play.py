@@ -5,6 +5,7 @@ import argparse
 import time
 import socket
 import re
+import cv2
 
 class DmdPlayer:
 
@@ -73,6 +74,33 @@ class DmdPlayer:
         if anim_cache is not None:
             DmdPlayer.playAnim(client, anim_cache, once)
 
+    def sendVideoFile(client, file, width, height, once):
+        while True:
+          cap = cv2.VideoCapture(file)
+          fps = cap.get(cv2.CAP_PROP_FPS)
+          last_rendering = None
+          print("fps:{}".format(fps))
+          nskip = fps // 20 # skip some frames to not overload too much ; no more than 20 fps
+          f = 0
+          while(cap.isOpened()):
+            ret, cv2_im = cap.read()
+            if not ret:
+                break;
+            if f % nskip == 0:
+                im = Image.fromarray(cv2.cvtColor(cv2_im, cv2.COLOR_BGR2RGB))
+                im = DmdPlayer.imageFit(im, width, height)
+                DmdPlayer.sendFrame(client, DmdPlayer.imageConvert(im))
+            if last_rendering is not None:
+                now = time.time()
+                d = now - last_rendering;
+                if d < 1/fps:
+                    time.sleep(1/fps - d)
+            last_rendering = time.time()
+            f +=1
+          cap.release()
+          if once:
+              break
+
     def playAnim(client, anim, once):
         while True:
             for n in range(len(anim)):
@@ -125,6 +153,7 @@ class DmdPlayer:
     def run():
         parser = argparse.ArgumentParser(prog="dmd-play")
         parser.add_argument("-f", "--file")
+        parser.add_argument("-v", "--video")
         parser.add_argument("-t", "--text")
         parser.add_argument("--font", default="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", help="path to the font file")
         parser.add_argument("--moving-text", action="store_true",   help="always makes the text to move, even if text fits")
@@ -137,7 +166,7 @@ class DmdPlayer:
         parser.add_argument("-p", "--port", type=int, default=53533,  help="network connexion port")
         args = parser.parse_args()
 
-        if args.file is None and args.text is None:
+        if args.file is None and args.video is None and args.text is None:
             sys.stderr.write("Missing something to play\n")
             return
 
@@ -150,6 +179,7 @@ class DmdPlayer:
             DmdPlayer.sendImageFile(client, args.file, srv["width"], srv["height"], args.once)
         elif args.text:
             DmdPlayer.sendText(client, args.text, (args.red, args.green, args.blue), srv["width"], srv["height"], args.font, args.moving_text, args.fixed_text, args.speed, args.once)
-
+        elif args.video:
+            DmdPlayer.sendVideoFile(client, args.video, srv["width"], srv["height"], args.once)
 if __name__ == '__main__':
     DmdPlayer.run()

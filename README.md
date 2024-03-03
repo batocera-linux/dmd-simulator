@@ -1,7 +1,7 @@
 # description
 dmd-simulator is a server that aims to simulate a real dmd into a browser.
 
-dmd-play is a client that connect on the server to load images (png and animatd gif) or texts.
+dmd-play is a client that connect on the server to load images (png and animatd gif) or videos or texts.
 
 dmd-play and dmd-simulator communicates via a tcp connexion.
 
@@ -25,11 +25,13 @@ run in browser : http://localhost:8080/?size=12&top=200&mode=led
 # play an image from the client
 <code>$ python3 dmd-play.py -f file.png
 $ python3 dmd-play.py -f file.gif
+$ python3 dmd-play.py -v file.mp4
 $ python3 dmd-play.py -t "Hello world"
 $ python3 dmd-play.py --help
 options:
   -h, --help            show this help message and exit
   -f FILE, --file FILE
+  -v VIDEO, --video VIDEO
   -t TEXT, --text TEXT
   --font FONT           path to the font file
   --moving-text         always makes the text to move, even if text fits
