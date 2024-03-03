@@ -12,6 +12,8 @@ dmd-simulator and the browser communicates via websockets.
 
 # execute
 ``$ docker run -ti -p 53533:53533 -p 53534:53534 -p 8080:8080 dmd-simulator``
+or
+``$ docker run -ti -p 53533:53533 -p 53534:53534 -p 8080:8080 -e DMD_WIDTH=64 -e DMD_HEIGHT=64 dmd-simulator``
 
 run in browser : http://localhost:8080/?size=12&top=200&mode=led
 
