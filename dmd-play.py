@@ -7,7 +7,13 @@ import argparse
 import time
 import socket
 import re
-import cv2
+
+feature_video = False
+try:
+    import cv2
+    feature_video = True
+except:
+    pass
 
 class DmdPlayer:
 
@@ -54,10 +60,10 @@ class DmdPlayer:
         new_im.alpha_composite(im, (woffset, hoffset))
         return new_im
 
-    def txt2image(txt, font, width, height, fillcolor):
+    def txt2image(txt, font, width, height, fillcolor, xoffset, yoffset):
         im = Image.new('RGB', (width, height))
         draw = ImageDraw.Draw(im)
-        draw.text((0, 0), txt, font=font, fill=fillcolor)
+        draw.text((xoffset, yoffset), txt, font=font, fill=fillcolor)
         return im
     
     def sendImageFile(client, file, width, height, once):
@@ -118,24 +124,27 @@ class DmdPlayer:
 
     def sendText(client, text, color, target_width, target_height, fontfile, moving_text, fixed_text, speed, once):
         font = ImageFont.truetype(fontfile, target_height)
-        img_width, img_height = font.getsize(text)
+        (left, top, right, bottom) = font.getbbox(text)
+        img_width  = right - left
+        img_height = bottom - top
         fit = img_width < target_width
         if fit and (moving_text is not True or fixed_text is True): # the text fit on the screen
-            im = DmdPlayer.txt2image(text, font, img_width, img_height, color)
+            im = DmdPlayer.txt2image(text, font, img_width, img_height, color, 0, -top)
             im = DmdPlayer.imageFit(im, target_width, target_height) # an optimisation could be to directly fit with an extra argument in txt2image
             DmdPlayer.sendFrame(client, DmdPlayer.imageConvert(im))
         elif not fit and (moving_text is not True or fixed_text is True): # it doesn't fix, resize
-            im = DmdPlayer.txt2image(text, font, img_width, img_height, color)
+            im = DmdPlayer.txt2image(text, font, img_width, img_height, color, 0, -top)
             im = im.resize((target_width, img_height * target_width // img_width))
             im = DmdPlayer.imageFit(im, target_width, target_height) # an optimisation could be to directly fit with an extra argument in txt2image
             DmdPlayer.sendFrame(client, DmdPlayer.imageConvert(im))
         else:
             # move the text ; generate all the frames in a cache first
             anim_cache = []
-            im = DmdPlayer.txt2image(text, font, img_width, img_height, color)
+            im = DmdPlayer.txt2image(text, font, img_width, img_height, color, 0, -top)
+            im = DmdPlayer.imageFit(im, target_width, target_height)
             for i in range(1, target_width+img_width):
                 new_im = Image.new('RGB', (target_width, target_height))
-                new_im.paste(im, (target_width-i, (target_height-img_height)//2)) # font and target can have a minimal pixel diff
+                new_im.paste(im, (target_width-i, 0))
                 anim_cache.append({ "img": DmdPlayer.imageConvert(new_im), "duration": speed })
             DmdPlayer.playAnim(client, anim_cache, once)
 
@@ -152,10 +161,11 @@ class DmdPlayer:
                 if res is not None:
                     return {"width": int(res.group(1)), "height": int(res.group(2))}
 
-    def run():
+    def run(feature_video):
         parser = argparse.ArgumentParser(prog="dmd-play")
         parser.add_argument("-f", "--file")
-        parser.add_argument("-v", "--video")
+        if feature_video:
+            parser.add_argument("-v", "--video")
         parser.add_argument("-t", "--text")
         parser.add_argument("--font", default="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", help="path to the font file")
         parser.add_argument("--moving-text", action="store_true",   help="always makes the text to move, even if text fits")
@@ -168,7 +178,15 @@ class DmdPlayer:
         parser.add_argument("-p", "--port", type=int, default=53533,  help="network connexion port")
         args = parser.parse_args()
 
-        if args.file is None and args.video is None and args.text is None:
+        allNone = True
+        if args.file is not None:
+            allNone = False
+        if args.text is not None:
+            allNone = False
+        if feature_video and args.video is not None:
+            allNone = False
+
+        if allNone:
             sys.stderr.write("Missing something to play\n")
             return
 
@@ -181,7 +199,7 @@ class DmdPlayer:
             DmdPlayer.sendImageFile(client, args.file, srv["width"], srv["height"], args.once)
         elif args.text:
             DmdPlayer.sendText(client, args.text, (args.red, args.green, args.blue), srv["width"], srv["height"], args.font, args.moving_text, args.fixed_text, args.speed, args.once)
-        elif args.video:
+        elif feature_video and args.video:
             DmdPlayer.sendVideoFile(client, args.video, srv["width"], srv["height"], args.once)
 if __name__ == '__main__':
-    DmdPlayer.run()
+    DmdPlayer.run(feature_video)
