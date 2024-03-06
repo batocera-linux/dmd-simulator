@@ -41,6 +41,10 @@ class DmdPlayer:
         
     def imageFit(im, width, height):
         img_width, img_height = im.size
+
+        if img_height == 0 or img_width == 0:
+            return Image.new("RGBA", (width, height))
+
         if(img_width / img_height > width / height):
             new_width = width
             new_height = round(width * img_height / img_width)
