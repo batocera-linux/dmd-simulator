@@ -140,21 +140,39 @@ class DmdSimulator():
                     pass
 
     async def dmd_handle_client(reader, writer):
+        layer_last = None
         response = "{}x{}".format(DmdSimulator.width, DmdSimulator.height) + "\n"
         writer.write(response.encode('utf8'))
         await writer.drain()
         while True:
             try:
-                request = (await reader.readline()).decode('utf8')
+                layer      = (await reader.readline()).decode('utf8')
+                layer      = layer[:-1] # remove \n
+                if layer not in ["main", "overlay"]:
+                    raise Exception("invalid layer")
+                request    = (await reader.readline()).decode('utf8')
                 packetsize = int(request)
-                request = (await reader.readexactly(packetsize))
-                DmdSimulator.image = DmdSimulator.convertImageRGB5652Html(request, DmdSimulator.width, DmdSimulator.height)
+                request    = (await reader.readexactly(packetsize))
+                frame = DmdSimulator.convertImageRGB5652Html(request, DmdSimulator.width, DmdSimulator.height)
+                if layer == "main":
+                    DmdSimulator.image = frame
+                else:
+                    DmdSimulator.layer = frame
                 if DmdSimulator.wsclient is not None:
                     try:
-                        await DmdSimulator.wsclient.send(DmdSimulator.image)
+                        if not (layer == "main" and DmdSimulator.layer is not None):
+                            await DmdSimulator.wsclient.send(frame)
+                            layer_last = layer
                     except:
-                        DmdSimulator.wsclient = None
+                        if layer != "main":
+                            DmdSimulator.layer = None
+                            if DmdSimulator.wsclient is not None:
+                                await DmdSimulator.wsclient.send(DmdSimulator.image) # reupdate with the main image (in case of static image)
             except:
+                if layer_last != "main":
+                    DmdSimulator.layer = None
+                    if DmdSimulator.wsclient is not None:
+                        await DmdSimulator.wsclient.send(DmdSimulator.image) # reupdate with the main image (in case of static image)
                 break
 
     async def run_dmdserver(host, port):
@@ -172,6 +190,7 @@ class DmdSimulator():
         DmdSimulator.width    = width
         DmdSimulator.height   = height
         DmdSimulator.image    = '*'
+        DmdSimulator.layer    = None
         try:
             await asyncio.gather(DmdSimulator.run_dmdserver(dmd_host, dmd_port), DmdSimulator.run_webserver(web_host, web_port), DmdSimulator.run_wsserver(ws_host, ws_port))
         except:
