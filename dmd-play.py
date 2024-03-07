@@ -172,6 +172,7 @@ class DmdPlayer:
             parser.add_argument("-v", "--video")
         parser.add_argument("-t", "--text")
         parser.add_argument("--font", default="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", help="path to the font file")
+        parser.add_argument("--clear", action="store_true", help="clear the screen")
         parser.add_argument("--moving-text", action="store_true",   help="always makes the text to move, even if text fits")
         parser.add_argument("--fixed-text",  action="store_true",   help="never makes the text to move, prefer to adjust size")
         parser.add_argument("-r", "--red",   type=int, default=255, help="red text color")
@@ -189,6 +190,8 @@ class DmdPlayer:
             allNone = False
         if feature_video and args.video is not None:
             allNone = False
+        if args.clear is True:
+            allNone = False
 
         if allNone:
             sys.stderr.write("Missing something to play\n")
@@ -205,5 +208,7 @@ class DmdPlayer:
             DmdPlayer.sendText(client, args.text, (args.red, args.green, args.blue), srv["width"], srv["height"], args.font, args.moving_text, args.fixed_text, args.speed, args.once)
         elif feature_video and args.video:
             DmdPlayer.sendVideoFile(client, args.video, srv["width"], srv["height"], args.once)
+        elif args.clear:
+            DmdPlayer.sendText(client, "", (args.red, args.green, args.blue), srv["width"], srv["height"], args.font, False, True, args.speed, True)
 if __name__ == '__main__':
     DmdPlayer.run(feature_video)
