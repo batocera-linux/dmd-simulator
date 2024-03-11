@@ -140,7 +140,7 @@ class DmdSimulator():
                     pass
 
     async def dmd_handle_client(reader, writer):
-        layer_last = None
+        isFavorite = True
         response = "{}x{}".format(DmdSimulator.width, DmdSimulator.height) + "\n"
         writer.write(response.encode('utf8'))
         await writer.drain()
@@ -150,26 +150,46 @@ class DmdSimulator():
                 layer      = layer[:-1] # remove \n
                 if layer not in ["main", "overlay"]:
                     raise Exception("invalid layer")
+
+                if isFavorite: # for the first frame, the client is prefered (and others disconnected)
+                    isFavorite = False
+                    if layer == "main":
+                        if DmdSimulator.dmdclient_main is not None and DmdSimulator.dmdclient_main != writer:
+                            print("force closing main client")
+                            DmdSimulator.dmdclient_main.close()
+                        DmdSimulator.dmdclient_main  = writer
+                    if layer == "overlay":
+                        if DmdSimulator.dmdclient_layer is not None and DmdSimulator.dmdclient_layer != writer:
+                            print("force closing layer client")
+                            DmdSimulator.dmdclient_layer.close()
+                        DmdSimulator.dmdclient_layer = writer
+
                 request    = (await reader.readline()).decode('utf8')
                 packetsize = int(request)
                 request    = (await reader.readexactly(packetsize))
+
                 frame = DmdSimulator.convertImageRGB5652Html(request, DmdSimulator.width, DmdSimulator.height)
-                if layer == "main":
-                    DmdSimulator.image = frame
-                else:
-                    DmdSimulator.layer = frame
-                if DmdSimulator.wsclient is not None:
+
+                newFrame = False
+                if DmdSimulator.dmdclient_main == writer: # now that there is no more await, check we did'nt changed the client
+                    if layer == "main":
+                        DmdSimulator.image = frame
+                        newFrame = True
+                if DmdSimulator.dmdclient_layer == writer: # now that there is no more await, check we did'nt changed the client
+                    if layer == "overlay":
+                        DmdSimulator.layer = frame
+                        newFrame = True
+                if newFrame and DmdSimulator.wsclient is not None:
                     try:
                         if not (layer == "main" and DmdSimulator.layer is not None):
                             await DmdSimulator.wsclient.send(frame)
-                            layer_last = layer
                     except:
-                        if layer != "main":
-                            DmdSimulator.layer = None
-                            if DmdSimulator.wsclient is not None:
-                                await DmdSimulator.wsclient.send(DmdSimulator.image) # reupdate with the main image (in case of static image)
+                        pass
             except:
-                if layer_last != "main":
+                if DmdSimulator.dmdclient_main == writer:
+                    DmdSimulator.dmdclient_main  = None
+                if DmdSimulator.dmdclient_layer == writer:
+                    DmdSimulator.dmdclient_layer = None
                     DmdSimulator.layer = None
                     if DmdSimulator.wsclient is not None:
                         await DmdSimulator.wsclient.send(DmdSimulator.image) # reupdate with the main image (in case of static image)
@@ -191,6 +211,8 @@ class DmdSimulator():
         DmdSimulator.height   = height
         DmdSimulator.image    = '*'
         DmdSimulator.layer    = None
+        DmdSimulator.dmdclient_main  = None
+        DmdSimulator.dmdclient_layer = None
         try:
             await asyncio.gather(DmdSimulator.run_dmdserver(dmd_host, dmd_port), DmdSimulator.run_webserver(web_host, web_port), DmdSimulator.run_wsserver(ws_host, ws_port))
         except:

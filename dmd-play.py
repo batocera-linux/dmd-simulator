@@ -132,7 +132,7 @@ class DmdPlayer:
             if once:
                 break
 
-    def sendText(client, layer, text, color, target_width, target_height, fontfile, moving_text, fixed_text, speed, once):
+    def sendText(client, layer, text, color, target_width, target_height, fontfile, moving_text, fixed_text, speed, move, once):
         font = ImageFont.truetype(fontfile, target_height)
         (left, top, right, bottom) = font.getbbox(text)
         img_width  = right - left
@@ -153,7 +153,7 @@ class DmdPlayer:
             im = DmdPlayer.txt2image(text, font, img_width, img_height, color, 0, -top)
             im = DmdPlayer.imageFit(im, target_width, target_height, False)
             reswidth, resimg_height = im.size
-            for i in range(1, target_width+reswidth):
+            for i in range(1, target_width+reswidth, move):
                 new_im = Image.new('RGB', (target_width, target_height))
                 new_im.paste(im, (target_width-i, 0))
                 anim_cache.append({ "img": DmdPlayer.imageConvert(new_im), "duration": speed })
@@ -187,7 +187,8 @@ class DmdPlayer:
         parser.add_argument("-r", "--red",   type=int, default=255,  help="red text color")
         parser.add_argument("-g", "--green", type=int, default=0,    help="green text color")
         parser.add_argument("-b", "--blue",  type=int, default=0,    help="blue text color")
-        parser.add_argument("-s", "--speed", type=int, default=20,   help="sleep time during each text position (in milliseconds)")
+        parser.add_argument("-s", "--speed", type=int, default=40,   help="sleep time during each text position (in milliseconds)")
+        parser.add_argument("-m", "--move",  type=int, default=1,    help="text movement each time")
         parser.add_argument("--once",  action="store_true",          help="don't loop forever")
         parser.add_argument("-p", "--port", type=int, default=53533, help="network connexion port")
         parser.add_argument("--host", default="localhost",           help="dmd server host")
@@ -218,11 +219,11 @@ class DmdPlayer:
         if args.file:
             DmdPlayer.sendImageFile(client, layer, args.file, srv["width"], srv["height"], args.once)
         elif args.text:
-            DmdPlayer.sendText(client, layer, args.text, (args.red, args.green, args.blue), srv["width"], srv["height"], args.font, args.moving_text, args.fixed_text, args.speed, args.once)
+            DmdPlayer.sendText(client, layer, args.text, (args.red, args.green, args.blue), srv["width"], srv["height"], args.font, args.moving_text, args.fixed_text, args.speed, args.move, args.once)
         elif feature_video and args.video:
             DmdPlayer.sendVideoFile(client, layer, args.video, srv["width"], srv["height"], args.once)
         elif args.clear:
-            DmdPlayer.sendText(client, layer, "", (args.red, args.green, args.blue), srv["width"], srv["height"], args.font, False, True, args.speed, True)
+            DmdPlayer.sendText(client, layer, "", (args.red, args.green, args.blue), srv["width"], srv["height"], args.font, False, True, args.speed, args.move, True)
 
         if args.overlay:
             time.sleep(args.overlay_time/1000)
