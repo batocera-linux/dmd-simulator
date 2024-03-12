@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import sys
 import argparse
 import socket
 import numpy as np
@@ -141,16 +142,23 @@ class DmdSimulator():
 
     async def dmd_handle_client(reader, writer):
         isFavorite = True
-        response = "{}x{}".format(DmdSimulator.width, DmdSimulator.height) + "\n"
-        writer.write(response.encode('utf8'))
-        await writer.drain()
         while True:
             try:
-                layer      = (await reader.readline()).decode('utf8')
-                layer      = layer[:-1] # remove \n
-                if layer not in ["main", "overlay"]:
-                    raise Exception("invalid layer")
+                requestHeader = (await reader.readexactly(24))
+                endianness = sys.byteorder
+                hcode = requestHeader[0:10]
+                if hcode != bytearray("DMDStream", "utf-8") + b'\x00':
+                    raise Exception("invalid header")
+                #version    = requestHeader[10]
+                #mode       = int.from_bytes(requestHeader[11:15], endianness)
+                #width      = int.from_bytes(requestHeader[15:17], endianness)
+                #height     = int.from_bytes(requestHeader[17:19], endianness)
+                buffered   = requestHeader[19]
+                packetsize = int.from_bytes(requestHeader[20:25], endianness)
 
+                layer = "main"
+                if buffered == 1:
+                    layer = "overlay"
                 if isFavorite: # for the first frame, the client is prefered (and others disconnected)
                     isFavorite = False
                     if layer == "main":
@@ -164,10 +172,7 @@ class DmdSimulator():
                             DmdSimulator.dmdclient_layer.close()
                         DmdSimulator.dmdclient_layer = writer
 
-                request    = (await reader.readline()).decode('utf8')
-                packetsize = int(request)
-                request    = (await reader.readexactly(packetsize))
-
+                request  = (await reader.readexactly(packetsize))
                 frame = DmdSimulator.convertImageRGB5652Html(request, DmdSimulator.width, DmdSimulator.height)
 
                 newFrame = False
@@ -222,9 +227,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog="dmd-simulator")
     parser.add_argument("--width",    type=int, default=128,         help="virtual dmd width")
     parser.add_argument("--height",   type=int, default= 32,         help="virtual dmd height")
-    parser.add_argument("--dmd-port", type=int, default=53533,       help="dmd listen port")
+    parser.add_argument("--dmd-port", type=int, default=6789,        help="dmd listen port")
     parser.add_argument("--web-port", type=int, default=8080,        help="web listen port")
-    parser.add_argument("--ws-port",  type=int, default=53534,       help="ws listen port")
+    parser.add_argument("--ws-port",  type=int, default=6790,        help="ws listen port")
     parser.add_argument("--dmd-host",           default="localhost", help="dmd listen interface address")
     parser.add_argument("--web-host",           default="",          help="web listen interface address")
     parser.add_argument("--ws-host",            default="",          help="ws listen interface address")
