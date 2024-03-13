@@ -76,6 +76,11 @@ class DmdSimulator():
           document.getElementById('dmd').innerHTML = '<div id="overlay"></div>' + res;
         }
       });
+
+      websocket.addEventListener("close", (event) => {
+        document.getElementById('dmd').innerHTML = '<div style="color: white; font-size: 2em;">Disconnected</div>';
+      });
+
     });
   </script>
   <style>
