@@ -11,9 +11,9 @@ dmd-simulator and the browser communicates via websockets.
 ``$ docker build -t dmd-simulator .``
 
 # execute
-``$ docker run -ti -p 53533:53533 -p 53534:53534 -p 8080:8080 dmd-simulator``
+``$ docker run -ti -p 6789:6789 -p 6790:6790 -p 8080:8080 dmd-simulator``
 or
-``$ docker run -ti -p 53533:53533 -p 53534:53534 -p 8080:8080 -e DMD_WIDTH=64 -e DMD_HEIGHT=64 dmd-simulator``
+``$ docker run -ti -p 6789:6789 -p 6790:6790 -p 8080:8080 -e DMD_WIDTH=64 -e DMD_HEIGHT=64 dmd-simulator``
 
 run in browser : http://localhost:8080/?size=12&top=200&mode=led
 
@@ -34,6 +34,10 @@ options:
   -v VIDEO, --video VIDEO
   -t TEXT, --text TEXT
   --font FONT           path to the font file
+  --clear               clear the screen
+  --overlay             restore the previous frames once finished
+  --overlay-time OVERLAY_TIME
+                        time to pause fixed images for the overlay in ms
   --moving-text         always makes the text to move, even if text fits
   --fixed-text          never makes the text to move, prefer to adjust size
   -r RED, --red RED     red text color
@@ -42,8 +46,12 @@ options:
   -b BLUE, --blue BLUE  blue text color
   -s SPEED, --speed SPEED
                         sleep time during each text position (in milliseconds)
+  -m MOVE, --move MOVE  text movement each time
   --once                don't loop forever
   -p PORT, --port PORT  network connexion port
+  --host HOST           dmd server host
+  --width WIDTH         dmd width
+  --height HEIGHT       dmd height
 </code>
 
 # examples
