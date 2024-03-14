@@ -33,13 +33,15 @@ class DmdPlayer:
         version = 1
         mode    = 3 # rgb565
         if layer == "main":
-            buffered = 0
-        else:
             buffered = 1
+            disconnectOthers = 1
+        else:
+            buffered = 0
+            disconnectOthers = 0
         header  = bytearray("DMDStream", "utf-8") + b'\x00'
         header += version.to_bytes(1, endianness)
         header += mode   .to_bytes(4, endianness)
-        header += width  .to_bytes(2, endianness) + height.to_bytes(2, endianness) + buffered.to_bytes(1, endianness)
+        header += width  .to_bytes(2, endianness) + height.to_bytes(2, endianness) + buffered.to_bytes(1, endianness) + disconnectOthers.to_bytes(1, endianness)
         header += nbytes .to_bytes(4, endianness)
         return header
 

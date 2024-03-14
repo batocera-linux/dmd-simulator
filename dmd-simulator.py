@@ -149,7 +149,7 @@ class DmdSimulator():
         isFavorite = True
         while True:
             try:
-                requestHeader = (await reader.readexactly(24))
+                requestHeader = (await reader.readexactly(25))
                 endianness = sys.byteorder
                 hcode = requestHeader[0:10]
                 if hcode != bytearray("DMDStream", "utf-8") + b'\x00':
@@ -158,11 +158,12 @@ class DmdSimulator():
                 #mode       = int.from_bytes(requestHeader[11:15], endianness)
                 #width      = int.from_bytes(requestHeader[15:17], endianness)
                 #height     = int.from_bytes(requestHeader[17:19], endianness)
-                buffered   = requestHeader[19]
-                packetsize = int.from_bytes(requestHeader[20:25], endianness)
+                buffered         = requestHeader[19]
+                disconnectOthers = requestHeader[20]
+                packetsize = int.from_bytes(requestHeader[21:26], endianness)
 
                 layer = "main"
-                if buffered == 1:
+                if buffered == 0:
                     layer = "overlay"
                 if isFavorite: # for the first frame, the client is prefered (and others disconnected)
                     isFavorite = False
