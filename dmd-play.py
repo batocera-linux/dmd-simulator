@@ -121,7 +121,7 @@ class DmdPlayer:
             ret, cv2_im = cap.read()
             if not ret:
                 break;
-            if f % nskip == 0:
+            if nskip > 0 and f % nskip == 0:
                 im = Image.fromarray(cv2.cvtColor(cv2_im, cv2.COLOR_BGR2RGB))
                 im = DmdPlayer.imageFit(im, width, height)
                 DmdPlayer.sendFrame(header, client, layer, DmdPlayer.imageConvert(im))
