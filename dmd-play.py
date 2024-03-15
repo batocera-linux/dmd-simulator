@@ -198,6 +198,7 @@ class DmdPlayer:
         parser.add_argument("--host", default="localhost",           help="dmd server host")
         parser.add_argument("--width",  type=int, default=128,       help="dmd width")
         parser.add_argument("--height", type=int, default= 32,       help="dmd height")
+        parser.add_argument("--hd",    action="store_true",          help="hd format, equivalent of --width 256 --height 64")
         args = parser.parse_args()
 
         allNone = True
@@ -220,17 +221,21 @@ class DmdPlayer:
             layer = "overlay"
         client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client.connect((socket.gethostbyname(args.host), args.port))
-        srv = { "width": args.width, "height": args.height }
-        header = DmdPlayer.getHeader(args.width, args.height, layer, args.width * args.height * 2) # RGB565
+        width  = args.width
+        height = args.height
+        if args.hd:
+            width  = 256
+            height = 64
+        header = DmdPlayer.getHeader(width, height, layer, width * height * 2) # RGB565
 
         if args.file:
-            DmdPlayer.sendImageFile(header, client, layer, args.file, srv["width"], srv["height"], args.once)
+            DmdPlayer.sendImageFile(header, client, layer, args.file, width, height, args.once)
         elif args.text:
-            DmdPlayer.sendText(header, client, layer, args.text, (args.red, args.green, args.blue), srv["width"], srv["height"], args.font, args.moving_text, args.fixed_text, args.speed, args.move, args.once)
+            DmdPlayer.sendText(header, client, layer, args.text, (args.red, args.green, args.blue), width, height, args.font, args.moving_text, args.fixed_text, args.speed, args.move, args.once)
         elif feature_video and args.video:
-            DmdPlayer.sendVideoFile(header, client, layer, args.video, srv["width"], srv["height"], args.once)
+            DmdPlayer.sendVideoFile(header, client, layer, args.video, width, height, args.once)
         elif args.clear:
-            DmdPlayer.sendText(header, client, layer, "", (args.red, args.green, args.blue), srv["width"], srv["height"], args.font, False, True, args.speed, args.move, True)
+            DmdPlayer.sendText(header, client, layer, "", (args.red, args.green, args.blue), width, height, args.font, False, True, args.speed, args.move, True)
 
         if args.overlay:
             time.sleep(args.overlay_time/1000)
