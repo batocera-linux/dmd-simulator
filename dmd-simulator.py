@@ -34,7 +34,7 @@ class DmdSimulator():
         print("web : new connexion from {}".format(request.remote))
         q = urlparse(request.path_qs)
         p = parse_qs(q.query)
-        psize = 10
+        psize = 1280 // DmdSimulator.width # 10 for 128
         ptop  =  0
         pmode = "led"
         if "size" in p:
