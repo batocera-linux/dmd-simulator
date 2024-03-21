@@ -240,7 +240,7 @@ class DmdPlayer:
         if args.overlay:
             time.sleep(args.overlay_time/1000)
 
-        client.disconnect()
+        client.close()
 
 if __name__ == '__main__':
     DmdPlayer.run(feature_video)
