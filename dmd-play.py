@@ -149,7 +149,7 @@ class DmdPlayer:
             if once:
                 break
 
-    def sendText(header, client, layer, text, color, target_width, target_height, fontfile, moving_text, fixed_text, speed, move, once):
+    def sendText(header, client, layer, text, color, target_width, target_height, fontfile, moving_text, fixed_text, speed, move, once, no_fit):
         font = ImageFont.truetype(fontfile, target_height)
         (left, top, right, bottom) = font.getbbox(text)
         img_width  = right - left
@@ -157,18 +157,21 @@ class DmdPlayer:
         fit = img_width < target_width
         if fit and (moving_text is not True or fixed_text is True): # the text fit on the screen
             im = DmdPlayer.txt2image(text, font, img_width, img_height, color, 0, -top)
-            im = DmdPlayer.imageFit(im, target_width, target_height) # an optimisation could be to directly fit with an extra argument in txt2image
+            if not no_fit:
+                im = DmdPlayer.imageFit(im, target_width, target_height) # an optimisation could be to directly fit with an extra argument in txt2image
             DmdPlayer.sendFrame(header, client, layer, DmdPlayer.imageConvert(im))
         elif not fit and (moving_text is not True or fixed_text is True): # it doesn't fix, resize
             im = DmdPlayer.txt2image(text, font, img_width, img_height, color, 0, -top)
             im = im.resize((target_width, img_height * target_width // img_width))
-            im = DmdPlayer.imageFit(im, target_width, target_height) # an optimisation could be to directly fit with an extra argument in txt2image
+            if not no_fit:
+                im = DmdPlayer.imageFit(im, target_width, target_height) # an optimisation could be to directly fit with an extra argument in txt2image
             DmdPlayer.sendFrame(header, client, layer, DmdPlayer.imageConvert(im))
         else:
             # move the text ; generate all the frames in a cache first
             anim_cache = []
             im = DmdPlayer.txt2image(text, font, img_width, img_height, color, 0, -top)
-            im = DmdPlayer.imageFit(im, target_width, target_height, False)
+            if not no_fit:
+                im = DmdPlayer.imageFit(im, target_width, target_height, False)
             reswidth, resimg_height = im.size
             for i in range(1, target_width+reswidth, move):
                 new_im = Image.new('RGB', (target_width, target_height))
@@ -182,23 +185,28 @@ class DmdPlayer:
         if feature_video:
             parser.add_argument("-v", "--video", help="video path file")
         parser.add_argument("-t", "--text", help="text")
-        parser.add_argument("--font", default="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", help="path to the font file")
-        parser.add_argument("--clear", action="store_true",          help="clear the screen")
-        parser.add_argument("--overlay", action="store_true",        help="restore the previous frames once finished")
+        parser.add_argument("--font", default="/usr/share/fonts/dejavu/DejaVuSans.ttf", help="path to the font file")
+        parser.add_argument("--clear", action="store_true",            help="clear the screen")
+        parser.add_argument("--overlay", action="store_true",          help="restore the previous frames once finished")
         parser.add_argument("--overlay-time", type=int, default=1000,  help="time to pause fixed images for the overlay in ms")
-        parser.add_argument("--moving-text", action="store_true",    help="always makes the text to move, even if text fits")
-        parser.add_argument("--fixed-text",  action="store_true",    help="never makes the text to move, prefer to adjust size")
-        parser.add_argument("-r", "--red",   type=int, default=255,  help="red text color")
-        parser.add_argument("-g", "--green", type=int, default=0,    help="green text color")
-        parser.add_argument("-b", "--blue",  type=int, default=0,    help="blue text color")
-        parser.add_argument("-s", "--speed", type=int, default=40,   help="sleep time during each text position (in milliseconds)")
-        parser.add_argument("-m", "--move",  type=int, default=1,    help="text movement each time")
-        parser.add_argument("--once",  action="store_true",          help="don't loop forever")
-        parser.add_argument("-p", "--port", type=int, default=6789,  help="network connexion port")
-        parser.add_argument("--host", default="localhost",           help="dmd server host")
-        parser.add_argument("--width",  type=int, default=128,       help="dmd width")
-        parser.add_argument("--height", type=int, default= 32,       help="dmd height")
-        parser.add_argument("--hd",    action="store_true",          help="hd format, equivalent of --width 256 --height 64")
+        parser.add_argument("--moving-text", action="store_true",      help="always makes the text to move, even if text fits")
+        parser.add_argument("--fixed-text",  action="store_true",      help="never makes the text to move, prefer to adjust size")
+        parser.add_argument("--caps",  action="store_true",            help="convert text in all caps")
+        parser.add_argument("--no-fit",  action="store_true",          help="keep font aspect ratio (easier to read for moving text)")
+        parser.add_argument("-r", "--red",   type=int, default=255,    help="red text color level (0-255)")
+        parser.add_argument("-g", "--green", type=int, default=0,      help="green text color level (0-255)")
+        parser.add_argument("-b", "--blue",  type=int, default=0,      help="blue text color level (0-255)")
+        parser.add_argument("-s", "--speed", type=int, default=60,     help="sleep time during each text position (in milliseconds)")
+        parser.add_argument("-m", "--move",  type=int, default=2,      help="text movement each time")
+        parser.add_argument("--once",  action="store_true",            help="don't loop forever")
+        parser.add_argument("-c", "--clock",  action="store_true",     help="display current time")
+        parser.add_argument("--no-seconds",  action="store_true",      help="clock: display only hours and minutes, no seconds")
+        parser.add_argument("--h12",  action="store_true",             help="clock: 12-hour format with AM and PM (default it 24h)")
+        parser.add_argument("-p", "--port", type=int, default=6789,    help="network connexion port")
+        parser.add_argument("--host", default="localhost",             help="dmd server host")
+        parser.add_argument("--width",  type=int, default=128,         help="dmd width")
+        parser.add_argument("--height", type=int, default= 32,         help="dmd height")
+        parser.add_argument("--hd",    action="store_true",            help="hd format, equivalent of --width 256 --height 64")
         args = parser.parse_args()
 
         allNone = True
@@ -209,6 +217,8 @@ class DmdPlayer:
         if feature_video and args.video is not None:
             allNone = False
         if args.clear is True:
+            allNone = False
+        if args.clock is True:
             allNone = False
 
         if allNone:
@@ -227,15 +237,37 @@ class DmdPlayer:
             width  = 256
             height = 64
         header = DmdPlayer.getHeader(width, height, layer, width * height * 2) # RGB565
+        if args.move < 1:
+            move = 1
+        else:
+            move = args.move
 
         if args.file:
             DmdPlayer.sendImageFile(header, client, layer, args.file, width, height, args.once)
         elif args.text:
-            DmdPlayer.sendText(header, client, layer, args.text, (args.red, args.green, args.blue), width, height, args.font, args.moving_text, args.fixed_text, args.speed, args.move, args.once)
+            if args.caps:
+                text = args.text.upper()
+            else:
+                text = args.text
+            DmdPlayer.sendText(header, client, layer, text, (args.red, args.green, args.blue), width, height, args.font, args.moving_text, args.fixed_text, args.speed, move, args.once, args.no_fit)
+        elif args.clock:
+            while True:
+                if args.h12:
+                    if args.no_seconds:
+                        localtime = time.strftime("%-I:%M %p", time.localtime())
+                    else:
+                        localtime = time.strftime("%-I:%M:%S %p", time.localtime())
+                else:
+                    if args.no_seconds:
+                        localtime = time.strftime("%H:%M", time.localtime())
+                    else:
+                        localtime = time.strftime("%H:%M:%S", time.localtime())
+                DmdPlayer.sendText(header, client, layer, localtime, (args.red, args.green, args.blue), width, height, args.font, False, args.fixed_text, args.speed, move, True, False)
+                time.sleep(args.speed/1000)
         elif feature_video and args.video:
             DmdPlayer.sendVideoFile(header, client, layer, args.video, width, height, args.once)
         elif args.clear:
-            DmdPlayer.sendText(header, client, layer, "", (args.red, args.green, args.blue), width, height, args.font, False, True, args.speed, args.move, True)
+            DmdPlayer.sendText(header, client, layer, "", (args.red, args.green, args.blue), width, height, args.font, False, True, args.speed, move, True, False)
 
         if args.overlay:
             time.sleep(args.overlay_time/1000)
