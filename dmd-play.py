@@ -87,10 +87,18 @@ class DmdPlayer:
         new_im.alpha_composite(im, (woffset, hoffset))
         return new_im
 
-    def txt2image(txt, font, width, height, fillcolor, xoffset, yoffset):
-        im = Image.new('RGB', (width, height))
-        draw = ImageDraw.Draw(im)
-        draw.text((xoffset, yoffset), txt, font=font, fill=fillcolor)
+    def txt2image(txt, font, gradient, width, height, fillcolor, xoffset, yoffset):
+        if gradient is not None:
+            im = Image.new('1', (width, height))
+            draw = ImageDraw.Draw(im)
+            gradback = Image.open(gradient).resize((width, height))
+            draw.text((xoffset, yoffset), txt, font=font, fill='white')
+            gradback.putalpha(im)
+            return gradback
+        else:
+            im = Image.new('RGB', (width, height))
+            draw = ImageDraw.Draw(im)
+            draw.text((xoffset, yoffset), txt, font=font, fill=fillcolor)
         return im
     
     def sendImageFile(header, client, layer, file, width, height, once):
@@ -149,19 +157,21 @@ class DmdPlayer:
             if once:
                 break
 
-    def sendText(header, client, layer, text, color, target_width, target_height, fontfile, moving_text, fixed_text, speed, move, once, no_fit):
+    def sendText(header, client, layer, text, color, target_width, target_height, fontfile, gradient, moving_text, fixed_text, speed, move, once, no_fit):
         font = ImageFont.truetype(fontfile, target_height)
         (left, top, right, bottom) = font.getbbox(text)
         img_width  = right - left
         img_height = bottom - top
         fit = img_width < target_width
+        if gradient is not None:
+            no_fit = None
         if fit and (moving_text is not True or fixed_text is True): # the text fit on the screen
-            im = DmdPlayer.txt2image(text, font, img_width, img_height, color, 0, -top)
+            im = DmdPlayer.txt2image(text, font, gradient, img_width, img_height, color, 0, -top)
             if not no_fit:
                 im = DmdPlayer.imageFit(im, target_width, target_height) # an optimisation could be to directly fit with an extra argument in txt2image
             DmdPlayer.sendFrame(header, client, layer, DmdPlayer.imageConvert(im))
         elif not fit and (moving_text is not True or fixed_text is True): # it doesn't fix, resize
-            im = DmdPlayer.txt2image(text, font, img_width, img_height, color, 0, -top)
+            im = DmdPlayer.txt2image(text, font, gradient, img_width, img_height, color, 0, -top)
             im = im.resize((target_width, img_height * target_width // img_width))
             if not no_fit:
                 im = DmdPlayer.imageFit(im, target_width, target_height) # an optimisation could be to directly fit with an extra argument in txt2image
@@ -169,7 +179,7 @@ class DmdPlayer:
         else:
             # move the text ; generate all the frames in a cache first
             anim_cache = []
-            im = DmdPlayer.txt2image(text, font, img_width, img_height, color, 0, -top)
+            im = DmdPlayer.txt2image(text, font, gradient, img_width, img_height, color, 0, -top)
             if not no_fit:
                 im = DmdPlayer.imageFit(im, target_width, target_height, False)
             reswidth, resimg_height = im.size
@@ -178,6 +188,23 @@ class DmdPlayer:
                 new_im.paste(im, (target_width-i, 0))
                 anim_cache.append({ "img": DmdPlayer.imageConvert(new_im), "duration": speed })
             DmdPlayer.playAnim(header, client, layer, anim_cache, once)
+
+    def sendClock(header, client, layer, color, width, height, fontfile, gradient, speed, h12, no_seconds, clock_format):
+        while True:
+            if clock_format:
+                localtime = time.strftime(clock_format, time.localtime())
+            elif h12:
+                if no_seconds:
+                    localtime = time.strftime("%-I:%M %p", time.localtime())
+                else:
+                    localtime = time.strftime("%-I:%M:%S %p", time.localtime())
+            else:
+                if no_seconds:
+                    localtime = time.strftime("%H:%M", time.localtime())
+                else:
+                    localtime = time.strftime("%H:%M:%S", time.localtime())
+            DmdPlayer.sendText(header, client, layer, localtime, color, width, height, fontfile, gradient, False, True, speed, 0, True, False)
+            time.sleep(speed/1000)
 
     def run(feature_video):
         parser = argparse.ArgumentParser(prog="dmd-play")
@@ -199,9 +226,11 @@ class DmdPlayer:
         parser.add_argument("-s", "--speed", type=int, default=60,     help="sleep time during each text position (in milliseconds)")
         parser.add_argument("-m", "--move",  type=int, default=2,      help="text movement each time")
         parser.add_argument("--once",  action="store_true",            help="don't loop forever")
+        parser.add_argument("--gradient", default=None,                help="gradient file (rainbow effect and more)")
         parser.add_argument("-c", "--clock",  action="store_true",     help="display current time")
         parser.add_argument("--no-seconds",  action="store_true",      help="clock: display only hours and minutes, no seconds")
         parser.add_argument("--h12",  action="store_true",             help="clock: 12-hour format with AM and PM (default it 24h)")
+        parser.add_argument("--clock-format", type=str, default=None,  help="clock: strftime-formatted string (superseeds --h12 and --no-seconds)")
         parser.add_argument("-p", "--port", type=int, default=6789,    help="network connexion port")
         parser.add_argument("--host", default="localhost",             help="dmd server host")
         parser.add_argument("--width",  type=int, default=128,         help="dmd width")
@@ -249,25 +278,13 @@ class DmdPlayer:
                 text = args.text.upper()
             else:
                 text = args.text
-            DmdPlayer.sendText(header, client, layer, text, (args.red, args.green, args.blue), width, height, args.font, args.moving_text, args.fixed_text, args.speed, move, args.once, args.no_fit)
+            DmdPlayer.sendText(header, client, layer, text, (args.red, args.green, args.blue), width, height, args.font, args.gradient, args.moving_text, args.fixed_text, args.speed, move, args.once, args.no_fit)
         elif args.clock:
-            while True:
-                if args.h12:
-                    if args.no_seconds:
-                        localtime = time.strftime("%-I:%M %p", time.localtime())
-                    else:
-                        localtime = time.strftime("%-I:%M:%S %p", time.localtime())
-                else:
-                    if args.no_seconds:
-                        localtime = time.strftime("%H:%M", time.localtime())
-                    else:
-                        localtime = time.strftime("%H:%M:%S", time.localtime())
-                DmdPlayer.sendText(header, client, layer, localtime, (args.red, args.green, args.blue), width, height, args.font, False, args.fixed_text, args.speed, move, True, False)
-                time.sleep(args.speed/1000)
+            DmdPlayer.sendClock(header, client, layer, (args.red, args.green, args.blue), width, height, args.font, args.gradient, args.speed, args.h12, args.no_seconds, args.clock_format)
         elif feature_video and args.video:
             DmdPlayer.sendVideoFile(header, client, layer, args.video, width, height, args.once)
         elif args.clear:
-            DmdPlayer.sendText(header, client, layer, "", (args.red, args.green, args.blue), width, height, args.font, False, True, args.speed, move, True, False)
+            DmdPlayer.sendText(header, client, layer, "", (args.red, args.green, args.blue), width, height, args.font, args.gradient, False, True, args.speed, move, True, False)
 
         if args.overlay:
             time.sleep(args.overlay_time/1000)
