@@ -7,6 +7,8 @@ import argparse
 import time
 import socket
 import re
+from datetime import datetime, timedelta
+from string import Formatter
 
 feature_video = False
 try:
@@ -206,6 +208,72 @@ class DmdPlayer:
             DmdPlayer.sendText(header, client, layer, localtime, color, width, height, fontfile, gradient, False, True, speed, 0, True, False)
             time.sleep(speed/1000)
 
+    # https://stackoverflow.com/questions/538666/format-timedelta-to-string
+    def strfdelta(tdelta, fmt='{D:02}d {H:02}h {M:02}m {S:02}s', inputtype='timedelta'):
+        """Convert a datetime.timedelta object or a regular number to a custom-
+        formatted string, just like the stftime() method does for datetime.datetime
+        objects.
+
+        The fmt argument allows custom formatting to be specified.  Fields can
+        include seconds, minutes, hours, days, and weeks.  Each field is optional.
+
+        Some examples:
+            '{D:02}d {H:02}h {M:02}m {S:02}s' --> '05d 08h 04m 02s' (default)
+            '{W}w {D}d {H}:{M:02}:{S:02}'     --> '4w 5d 8:04:02'
+            '{D:2}d {H:2}:{M:02}:{S:02}'      --> ' 5d  8:04:02'
+            '{H}h {S}s'                       --> '72h 800s'
+
+        The inputtype argument allows tdelta to be a regular number instead of the
+        default, which is a datetime.timedelta object.  Valid inputtype strings:
+            's', 'seconds',
+            'm', 'minutes',
+            'h', 'hours',
+            'd', 'days',
+            'w', 'weeks'
+        """
+
+        # Convert tdelta to integer seconds.
+        if inputtype == 'timedelta':
+            remainder = int(tdelta.total_seconds())
+        elif inputtype in ['s', 'seconds']:
+            remainder = int(tdelta)
+        elif inputtype in ['m', 'minutes']:
+            remainder = int(tdelta)*60
+        elif inputtype in ['h', 'hours']:
+            remainder = int(tdelta)*3600
+        elif inputtype in ['d', 'days']:
+            remainder = int(tdelta)*86400
+        elif inputtype in ['w', 'weeks']:
+            remainder = int(tdelta)*604800
+
+        f = Formatter()
+        desired_fields = [field_tuple[1] for field_tuple in f.parse(fmt)]
+        possible_fields = ('W', 'D', 'H', 'M', 'S')
+        constants = {'W': 604800, 'D': 86400, 'H': 3600, 'M': 60, 'S': 1}
+        values = {}
+        for field in possible_fields:
+            if field in desired_fields and field in constants:
+                values[field], remainder = divmod(remainder, constants[field])
+        return f.format(fmt, **values)
+
+    def sendCountdown(header, client, layer, countdown, color, width, height, fontfile, gradient, speed, countdown_format, countdown_format_0_day, countdown_format_0_hour, countdown_format_0_minute):
+        target = datetime.strptime(countdown, '%Y-%m-%d %H:%M:%S')
+
+        while True:
+            now    = datetime.now()
+            delta  = abs(target - now)
+            total_seconds = delta.total_seconds()
+            if (total_seconds > 0 and total_seconds < 60) or (total_seconds < 0 and total_seconds > -60):
+                txt = DmdPlayer.strfdelta(delta, countdown_format_0_minute)
+            elif (total_seconds > 0 and total_seconds < 3600) or (total_seconds < 0 and total_seconds > -3600):
+                txt = DmdPlayer.strfdelta(delta, countdown_format_0_hour)
+            elif (total_seconds > 0 and total_seconds < 86400) or (total_seconds < 0 and total_seconds > -86400):
+                txt = DmdPlayer.strfdelta(delta, countdown_format_0_day)
+            else:
+                txt = DmdPlayer.strfdelta(delta, countdown_format)
+            DmdPlayer.sendText(header, client, layer, txt, color, width, height, fontfile, gradient, False, True, speed, 0, True, False)
+            time.sleep(speed/1000)
+
     def run(feature_video):
         parser = argparse.ArgumentParser(prog="dmd-play")
         parser.add_argument("-f", "--file", help="image path file")
@@ -231,6 +299,11 @@ class DmdPlayer:
         parser.add_argument("--no-seconds",  action="store_true",      help="clock: display only hours and minutes, no seconds")
         parser.add_argument("--h12",  action="store_true",             help="clock: 12-hour format with AM and PM (default it 24h)")
         parser.add_argument("--clock-format", type=str, default=None,  help="clock: strftime-formatted string (superseeds --h12 and --no-seconds)")
+        parser.add_argument("-C", "--countdown",                       help="display a countdown (2050-06-30 15:00:00)")
+        parser.add_argument("--countdown-format",          default="{D:2}d {H:2}:{M:02}:{S:02}", help="countdown format")
+        parser.add_argument("--countdown-format-0-day",    default="{H:2}:{M:02}:{S:02}",        help="countdown format when less than 1 day")
+        parser.add_argument("--countdown-format-0-hour",   default="{M:2}:{S:02}",               help="countdown format when less than 1 hour")
+        parser.add_argument("--countdown-format-0-minute", default="{S:2}",                      help="countdown format when less than 1 minute")
         parser.add_argument("-p", "--port", type=int, default=6789,    help="network connexion port")
         parser.add_argument("--host", default="localhost",             help="dmd server host")
         parser.add_argument("--width",  type=int, default=128,         help="dmd width")
@@ -248,6 +321,8 @@ class DmdPlayer:
         if args.clear is True:
             allNone = False
         if args.clock is True:
+            allNone = False
+        if args.countdown is not None:
             allNone = False
 
         if allNone:
@@ -281,6 +356,8 @@ class DmdPlayer:
             DmdPlayer.sendText(header, client, layer, text, (args.red, args.green, args.blue), width, height, args.font, args.gradient, args.moving_text, args.fixed_text, args.speed, move, args.once, args.no_fit)
         elif args.clock:
             DmdPlayer.sendClock(header, client, layer, (args.red, args.green, args.blue), width, height, args.font, args.gradient, args.speed, args.h12, args.no_seconds, args.clock_format)
+        elif args.countdown:
+            DmdPlayer.sendCountdown(header, client, layer, args.countdown, (args.red, args.green, args.blue), width, height, args.font, args.gradient, args.speed, args.countdown_format, args.countdown_format_0_day, args.countdown_format_0_hour, args.countdown_format_0_minute)
         elif feature_video and args.video:
             DmdPlayer.sendVideoFile(header, client, layer, args.video, width, height, args.once)
         elif args.clear:
