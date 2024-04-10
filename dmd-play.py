@@ -89,18 +89,18 @@ class DmdPlayer:
         new_im.alpha_composite(im, (woffset, hoffset))
         return new_im
 
-    def txt2image(txt, font, gradient, width, height, fillcolor, xoffset, yoffset):
+    def txt2image(txt, font, gradient, width, height, fillcolor, xoffset, yoffset, spacing, align):
         if gradient is not None:
-            im = Image.new('1', (width, height))
+            im = Image.new('L', (width, height))
             draw = ImageDraw.Draw(im)
             gradback = Image.open(gradient).resize((width, height))
-            draw.text((xoffset, yoffset), txt, font=font, fill='white')
+            draw.multiline_text((xoffset, yoffset), txt, font=font, spacing=spacing, align=align, fill='white')
             gradback.putalpha(im)
             return gradback
         else:
             im = Image.new('RGB', (width, height))
             draw = ImageDraw.Draw(im)
-            draw.text((xoffset, yoffset), txt, font=font, fill=fillcolor)
+            draw.multiline_text((xoffset, yoffset), txt, font=font, spacing=spacing, align=align, fill=fillcolor)
         return im
     
     def sendImageFile(header, client, layer, file, width, height, once):
@@ -159,21 +159,27 @@ class DmdPlayer:
             if once:
                 break
 
-    def sendText(header, client, layer, text, color, target_width, target_height, fontfile, gradient, moving_text, fixed_text, speed, move, once, no_fit):
-        font = ImageFont.truetype(fontfile, target_height)
-        (left, top, right, bottom) = font.getbbox(text)
-        img_width  = right - left
-        img_height = bottom - top
-        fit = img_width < target_width
+    def sendText(header, client, layer, text, color, target_width, target_height, fontfile, gradient, moving_text, fixed_text, speed, move, once, no_fit, line_spacing, align):
+        text = bytes(text, 'utf-8').decode("unicode_escape") # so that you can use '\n'
+        lines = text.splitlines()
+        if len(lines) < 1:
+            lines = [ '' ]
+        font = ImageFont.truetype(fontfile, target_height // len(lines))
+        im = Image.new('RGB', (target_width, target_height))
+        draw = ImageDraw.Draw(im)
+        (left, top, right, bottom) = draw.multiline_textbbox((0,0), text, font=font, spacing=line_spacing, align=align)
+        img_width  = int(right - left)
+        img_height = int(bottom - top)
+        fit = (img_width < target_width) and (img_height < target_height)
         if gradient is not None:
-            no_fit = None
+            no_fit = False
         if fit and (moving_text is not True or fixed_text is True): # the text fit on the screen
-            im = DmdPlayer.txt2image(text, font, gradient, img_width, img_height, color, 0, -top)
+            im = DmdPlayer.txt2image(text, font, gradient, img_width, img_height, color, 0, -top, line_spacing, align)
             if not no_fit:
                 im = DmdPlayer.imageFit(im, target_width, target_height) # an optimisation could be to directly fit with an extra argument in txt2image
             DmdPlayer.sendFrame(header, client, layer, DmdPlayer.imageConvert(im))
         elif not fit and (moving_text is not True or fixed_text is True): # it doesn't fix, resize
-            im = DmdPlayer.txt2image(text, font, gradient, img_width, img_height, color, 0, -top)
+            im = DmdPlayer.txt2image(text, font, gradient, img_width, img_height, color, 0, -top, line_spacing, align)
             im = im.resize((target_width, img_height * target_width // img_width))
             if not no_fit:
                 im = DmdPlayer.imageFit(im, target_width, target_height) # an optimisation could be to directly fit with an extra argument in txt2image
@@ -181,7 +187,7 @@ class DmdPlayer:
         else:
             # move the text ; generate all the frames in a cache first
             anim_cache = []
-            im = DmdPlayer.txt2image(text, font, gradient, img_width, img_height, color, 0, -top)
+            im = DmdPlayer.txt2image(text, font, gradient, img_width, img_height, color, 0, -top, line_spacing, align)
             if not no_fit:
                 im = DmdPlayer.imageFit(im, target_width, target_height, False)
             reswidth, resimg_height = im.size
@@ -191,7 +197,7 @@ class DmdPlayer:
                 anim_cache.append({ "img": DmdPlayer.imageConvert(new_im), "duration": speed })
             DmdPlayer.playAnim(header, client, layer, anim_cache, once)
 
-    def sendClock(header, client, layer, color, width, height, fontfile, gradient, speed, h12, no_seconds, clock_format):
+    def sendClock(header, client, layer, color, width, height, fontfile, gradient, speed, h12, no_seconds, clock_format, line_spacing, align):
         while True:
             if clock_format:
                 localtime = time.strftime(clock_format, time.localtime())
@@ -205,7 +211,7 @@ class DmdPlayer:
                     localtime = time.strftime("%H:%M", time.localtime())
                 else:
                     localtime = time.strftime("%H:%M:%S", time.localtime())
-            DmdPlayer.sendText(header, client, layer, localtime, color, width, height, fontfile, gradient, False, True, speed, 0, True, False)
+            DmdPlayer.sendText(header, client, layer, localtime, color, width, height, fontfile, gradient, False, True, speed, 0, True, False, line_spacing, align)
             time.sleep(speed/1000)
 
     # https://stackoverflow.com/questions/538666/format-timedelta-to-string
@@ -256,7 +262,7 @@ class DmdPlayer:
                 values[field], remainder = divmod(remainder, constants[field])
         return f.format(fmt, **values)
 
-    def sendCountdown(header, client, layer, countdown, color, width, height, fontfile, gradient, speed, countdown_format, countdown_format_0_day, countdown_format_0_hour, countdown_format_0_minute):
+    def sendCountdown(header, client, layer, countdown, color, width, height, fontfile, gradient, speed, countdown_format, countdown_format_0_day, countdown_format_0_hour, countdown_format_0_minute, line_spacing, align):
         target = datetime.strptime(countdown, '%Y-%m-%d %H:%M:%S')
 
         while True:
@@ -271,7 +277,7 @@ class DmdPlayer:
                 txt = DmdPlayer.strfdelta(delta, countdown_format_0_day)
             else:
                 txt = DmdPlayer.strfdelta(delta, countdown_format)
-            DmdPlayer.sendText(header, client, layer, txt, color, width, height, fontfile, gradient, False, True, speed, 0, True, False)
+            DmdPlayer.sendText(header, client, layer, txt, color, width, height, fontfile, gradient, False, True, speed, 0, True, False, line_spacing, align)
             time.sleep(speed/1000)
 
     def run(feature_video):
@@ -295,6 +301,8 @@ class DmdPlayer:
         parser.add_argument("-m", "--move",  type=int, default=2,      help="text movement each time")
         parser.add_argument("--once",  action="store_true",            help="don't loop forever")
         parser.add_argument("--gradient", default=None,                help="gradient file (rainbow effect and more)")
+        parser.add_argument("-l", "--line-spacing",  type=int, default=2, help="number of pixels between each line of text")
+        parser.add_argument("--align",  type=str, default='center',    help="text alignment: center, left or right")
         parser.add_argument("-c", "--clock",  action="store_true",     help="display current time")
         parser.add_argument("--no-seconds",  action="store_true",      help="clock: display only hours and minutes, no seconds")
         parser.add_argument("--h12",  action="store_true",             help="clock: 12-hour format with AM and PM (default it 24h)")
@@ -351,17 +359,18 @@ class DmdPlayer:
         elif args.text:
             if args.caps:
                 text = args.text.upper()
+                text = re.sub(r'\\N', '\n', text)
             else:
                 text = args.text
-            DmdPlayer.sendText(header, client, layer, text, (args.red, args.green, args.blue), width, height, args.font, args.gradient, args.moving_text, args.fixed_text, args.speed, move, args.once, args.no_fit)
+            DmdPlayer.sendText(header, client, layer, text, (args.red, args.green, args.blue), width, height, args.font, args.gradient, args.moving_text, args.fixed_text, args.speed, move, args.once, args.no_fit, args.line_spacing, args.align)
         elif args.clock:
-            DmdPlayer.sendClock(header, client, layer, (args.red, args.green, args.blue), width, height, args.font, args.gradient, args.speed, args.h12, args.no_seconds, args.clock_format)
+            DmdPlayer.sendClock(header, client, layer, (args.red, args.green, args.blue), width, height, args.font, args.gradient, args.speed, args.h12, args.no_seconds, args.clock_format, args.line_spacing, args.align)
         elif args.countdown:
-            DmdPlayer.sendCountdown(header, client, layer, args.countdown, (args.red, args.green, args.blue), width, height, args.font, args.gradient, args.speed, args.countdown_format, args.countdown_format_0_day, args.countdown_format_0_hour, args.countdown_format_0_minute)
+            DmdPlayer.sendCountdown(header, client, layer, args.countdown, (args.red, args.green, args.blue), width, height, args.font, args.gradient, args.speed, args.countdown_format, args.countdown_format_0_day, args.countdown_format_0_hour, args.countdown_format_0_minute, args.line_spacing, args.align)
         elif feature_video and args.video:
             DmdPlayer.sendVideoFile(header, client, layer, args.video, width, height, args.once)
         elif args.clear:
-            DmdPlayer.sendText(header, client, layer, "", (args.red, args.green, args.blue), width, height, args.font, args.gradient, False, True, args.speed, move, True, False)
+            DmdPlayer.sendText(header, client, layer, "", (args.red, args.green, args.blue), width, height, args.font, args.gradient, False, True, args.speed, move, True, False, args.line_spacing, args.align)
 
         if args.overlay:
             time.sleep(args.overlay_time/1000)
