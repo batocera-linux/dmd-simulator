@@ -262,7 +262,7 @@ class DmdPlayer:
                 values[field], remainder = divmod(remainder, constants[field])
         return f.format(fmt, **values)
 
-    def sendCountdown(header, client, layer, countdown, color, width, height, fontfile, gradient, speed, countdown_format, countdown_format_0_day, countdown_format_0_hour, countdown_format_0_minute, line_spacing, align):
+    def sendCountdown(header, client, layer, countdown, color, width, height, fontfile, gradient, speed, countdown_header, countdown_format, countdown_format_0_day, countdown_format_0_hour, countdown_format_0_minute, line_spacing, align):
         target = datetime.strptime(countdown, '%Y-%m-%d %H:%M:%S')
 
         while True:
@@ -277,6 +277,8 @@ class DmdPlayer:
                 txt = DmdPlayer.strfdelta(delta, countdown_format_0_day)
             else:
                 txt = DmdPlayer.strfdelta(delta, countdown_format)
+            if countdown_header is not None:
+                txt = countdown_header + "\n" + txt
             DmdPlayer.sendText(header, client, layer, txt, color, width, height, fontfile, gradient, False, True, speed, 0, True, False, line_spacing, align)
             time.sleep(speed/1000)
 
@@ -308,6 +310,7 @@ class DmdPlayer:
         parser.add_argument("--h12",  action="store_true",             help="clock: 12-hour format with AM and PM (default it 24h)")
         parser.add_argument("--clock-format", type=str, default=None,  help="clock: strftime-formatted string (superseeds --h12 and --no-seconds)")
         parser.add_argument("-C", "--countdown",                       help="display a countdown (2050-06-30 15:00:00)")
+        parser.add_argument("--countdown-header",                      help="equivalent of changing all format with a prefix")
         parser.add_argument("--countdown-format",          default="{D:2}d {H:2}:{M:02}:{S:02}", help="countdown format")
         parser.add_argument("--countdown-format-0-day",    default="{H:2}:{M:02}:{S:02}",        help="countdown format when less than 1 day")
         parser.add_argument("--countdown-format-0-hour",   default="{M:2}:{S:02}",               help="countdown format when less than 1 hour")
@@ -366,7 +369,7 @@ class DmdPlayer:
         elif args.clock:
             DmdPlayer.sendClock(header, client, layer, (args.red, args.green, args.blue), width, height, args.font, args.gradient, args.speed, args.h12, args.no_seconds, args.clock_format, args.line_spacing, args.align)
         elif args.countdown:
-            DmdPlayer.sendCountdown(header, client, layer, args.countdown, (args.red, args.green, args.blue), width, height, args.font, args.gradient, args.speed, args.countdown_format, args.countdown_format_0_day, args.countdown_format_0_hour, args.countdown_format_0_minute, args.line_spacing, args.align)
+            DmdPlayer.sendCountdown(header, client, layer, args.countdown, (args.red, args.green, args.blue), width, height, args.font, args.gradient, args.speed, args.countdown_header, args.countdown_format, args.countdown_format_0_day, args.countdown_format_0_hour, args.countdown_format_0_minute, args.line_spacing, args.align)
         elif feature_video and args.video:
             DmdPlayer.sendVideoFile(header, client, layer, args.video, width, height, args.once)
         elif args.clear:
