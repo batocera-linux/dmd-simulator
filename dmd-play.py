@@ -160,7 +160,8 @@ class DmdPlayer:
                 break
 
     def sendText(header, client, layer, text, color, target_width, target_height, fontfile, gradient, moving_text, fixed_text, speed, move, once, no_fit, line_spacing, align):
-        text = bytes(text, 'utf-8').decode("unicode_escape") # so that you can use '\n'
+        #text = bytes(text, 'utf-8').decode("unicode_escape") # so that you can use '\n' # this one break utf-8 chars
+        text = text.replace("\\n", "\n")
         lines = text.splitlines()
         if len(lines) < 1:
             lines = [ '' ]
