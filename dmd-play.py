@@ -112,6 +112,9 @@ class DmdPlayer:
                 for n in range(im.n_frames):
                     anim_cache.append({ "img": DmdPlayer.imageConvert(DmdPlayer.imageFit(im, width, height)), "duration": im.info["duration"] })
                     im.seek(n)
+                    if "loop" in im.info:
+                        if im.info["loop"] == 1: # if the image precise to loop only once, and once is not set, set it to 1
+                            once = True
             else:
                 im = DmdPlayer.imageFit(im, width, height)
                 DmdPlayer.sendFrame(header, client, layer, DmdPlayer.imageConvert(im))
