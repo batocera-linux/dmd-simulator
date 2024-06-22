@@ -202,6 +202,7 @@ class DmdPlayer:
             DmdPlayer.playAnim(header, client, layer, anim_cache, once)
 
     def sendClock(header, client, layer, color, width, height, fontfile, gradient, speed, h12, no_seconds, clock_format, line_spacing, align):
+        previousTxt = ""
         while True:
             if clock_format:
                 localtime = time.strftime(clock_format, time.localtime())
@@ -215,7 +216,9 @@ class DmdPlayer:
                     localtime = time.strftime("%H:%M", time.localtime())
                 else:
                     localtime = time.strftime("%H:%M:%S", time.localtime())
-            DmdPlayer.sendText(header, client, layer, localtime, color, width, height, fontfile, gradient, False, True, speed, 0, True, False, line_spacing, align)
+            if previousTxt != localtime:
+                previousTxt = localtime
+                DmdPlayer.sendText(header, client, layer, localtime, color, width, height, fontfile, gradient, False, True, speed, 0, True, False, line_spacing, align)
             time.sleep(speed/1000)
 
     # https://stackoverflow.com/questions/538666/format-timedelta-to-string
