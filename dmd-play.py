@@ -2,7 +2,8 @@
 
 from PIL import Image, ImageDraw, ImageFont
 import sys
-import numpy as np
+from numpy import array  as nparray
+from numpy import uint16 as npuint16
 import argparse
 import time
 import socket
@@ -20,15 +21,14 @@ except:
 class DmdPlayer:
 
     def im2rgb565(im):
-        data = np.array(im.convert('RGB'))
-        R5 = (data[...,0]>>3).astype(np.uint16) << 11
-        G6 = (data[...,1]>>2).astype(np.uint16) << 5
-        B5 = (data[...,2]>>3).astype(np.uint16)
+        data = nparray(im.convert('RGB'))
+        R5 = (data[...,0]>>3).astype(npuint16) << 11
+        G6 = (data[...,1]>>2).astype(npuint16) << 5
+        B5 = (data[...,2]>>3).astype(npuint16)
         return R5 | G6 | B5
 
     def imageConvert(im):
         return DmdPlayer.im2rgb565(im)
-        #return np.array(im.convert('RGB'))
 
     def getHeader(width, height, layer, nbytes):
         endianness = sys.byteorder
