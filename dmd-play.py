@@ -2,8 +2,6 @@
 
 from PIL import Image, ImageDraw, ImageFont
 import sys
-from numpy import array  as nparray
-from numpy import uint16 as npuint16
 import argparse
 import time
 import socket
@@ -11,24 +9,37 @@ import re
 from datetime import datetime, timedelta
 from string import Formatter
 
-feature_video = False
-try:
-    import cv2
-    feature_video = True
-except:
-    pass
-
 class DmdPlayer:
 
-    def im2rgb565(im):
+    def im2rgb565_fast(im):
+        from numpy import array  as nparray
+        from numpy import uint16 as npuint16
         data = nparray(im.convert('RGB'))
         R5 = (data[...,0]>>3).astype(npuint16) << 11
         G6 = (data[...,1]>>2).astype(npuint16) << 5
         B5 = (data[...,2]>>3).astype(npuint16)
-        return R5 | G6 | B5
+        x = R5 | G6 | B5
+        return x.tobytes()
 
-    def imageConvert(im):
-        return DmdPlayer.im2rgb565(im)
+    def im2rgb565(im):
+        data = im.convert('RGB')
+        pixels = data.load()
+        width, height = data.size
+        rgb565_data = bytearray(width*height*2)
+        n = 0
+        for y in range(height):
+            for x in range(width):
+                r, g, b = pixels[x, y]
+                rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+                rgb565_data[n:n+1] = (rgb565 & 0xFF, (rgb565 >> 8) & 0xFF)
+                n += 2
+        return rgb565_data
+
+    def imageConvert(im, fastMethod = True):
+        if fastMethod:
+            return DmdPlayer.im2rgb565_fast(im)
+        else:
+            return DmdPlayer.im2rgb565(im)
 
     def getHeader(width, height, layer, nbytes):
         endianness = sys.byteorder
@@ -48,7 +59,7 @@ class DmdPlayer:
         return header
 
     def sendFrame(header, client, layer, im):
-        msg = header + im.tobytes()
+        msg = header + im
         msglen = len(msg)
         totalsent = 0
         while totalsent < msglen:
@@ -117,12 +128,13 @@ class DmdPlayer:
                             once = True
             else:
                 im = DmdPlayer.imageFit(im, width, height)
-                DmdPlayer.sendFrame(header, client, layer, DmdPlayer.imageConvert(im))
+                DmdPlayer.sendFrame(header, client, layer, DmdPlayer.imageConvert(im, False))
         # close the image to just play the cache
         if anim_cache is not None:
             DmdPlayer.playAnim(header, client, layer, anim_cache, once)
 
     def sendVideoFile(header, client, layer, file, width, height, once):
+        import cv2
         while True:
           cap = cv2.VideoCapture(file)
           fps = cap.get(cv2.CAP_PROP_FPS)
@@ -162,7 +174,7 @@ class DmdPlayer:
             if once:
                 break
 
-    def sendText(header, client, layer, text, color, target_width, target_height, fontfile, gradient, moving_text, fixed_text, speed, move, once, no_fit, line_spacing, align):
+    def sendText(header, client, layer, text, color, target_width, target_height, fontfile, gradient, moving_text, fixed_text, speed, move, once, no_fit, line_spacing, align, fastMethod = True):
         #text = bytes(text, 'utf-8').decode("unicode_escape") # so that you can use '\n' # this one break utf-8 chars
         text = text.replace("\\n", "\n")
         lines = text.splitlines()
@@ -181,13 +193,13 @@ class DmdPlayer:
             im = DmdPlayer.txt2image(text, font, gradient, img_width, img_height, color, 0, -top, line_spacing, align)
             if not no_fit:
                 im = DmdPlayer.imageFit(im, target_width, target_height) # an optimisation could be to directly fit with an extra argument in txt2image
-            DmdPlayer.sendFrame(header, client, layer, DmdPlayer.imageConvert(im))
+            DmdPlayer.sendFrame(header, client, layer, DmdPlayer.imageConvert(im, fastMethod))
         elif not fit and (moving_text is not True or fixed_text is True): # it doesn't fix, resize
             im = DmdPlayer.txt2image(text, font, gradient, img_width, img_height, color, 0, -top, line_spacing, align)
             im = im.resize((target_width, img_height * target_width // img_width))
             if not no_fit:
                 im = DmdPlayer.imageFit(im, target_width, target_height) # an optimisation could be to directly fit with an extra argument in txt2image
-            DmdPlayer.sendFrame(header, client, layer, DmdPlayer.imageConvert(im))
+            DmdPlayer.sendFrame(header, client, layer, DmdPlayer.imageConvert(im, fastMethod))
         else:
             # move the text ; generate all the frames in a cache first
             anim_cache = []
@@ -198,7 +210,7 @@ class DmdPlayer:
             for i in range(1, target_width+reswidth, move):
                 new_im = Image.new('RGB', (target_width, target_height))
                 new_im.paste(im, (target_width-i, 0))
-                anim_cache.append({ "img": DmdPlayer.imageConvert(new_im), "duration": speed })
+                anim_cache.append({ "img": DmdPlayer.imageConvert(new_im, fastMethod), "duration": speed })
             DmdPlayer.playAnim(header, client, layer, anim_cache, once)
 
     def sendClock(header, client, layer, color, width, height, fontfile, gradient, speed, h12, no_seconds, clock_format, line_spacing, align):
@@ -289,11 +301,10 @@ class DmdPlayer:
             DmdPlayer.sendText(header, client, layer, txt, color, width, height, fontfile, gradient, False, True, speed, 0, True, False, line_spacing, align)
             time.sleep(speed/1000)
 
-    def run(feature_video):
+    def run():
         parser = argparse.ArgumentParser(prog="dmd-play")
         parser.add_argument("-f", "--file", help="image path file")
-        if feature_video:
-            parser.add_argument("-v", "--video", help="video path file")
+        parser.add_argument("-v", "--video", help="video path file")
         parser.add_argument("-t", "--text", help="text")
         parser.add_argument("--font", default="/usr/share/fonts/dejavu/DejaVuSans.ttf", help="path to the font file")
         parser.add_argument("--clear", action="store_true",            help="clear the screen")
@@ -334,7 +345,7 @@ class DmdPlayer:
             allNone = False
         if args.text is not None:
             allNone = False
-        if feature_video and args.video is not None:
+        if args.video is not None:
             allNone = False
         if args.clear is True:
             allNone = False
@@ -372,15 +383,15 @@ class DmdPlayer:
                 text = re.sub(r'\\N', '\n', text)
             else:
                 text = args.text
-            DmdPlayer.sendText(header, client, layer, text, (args.red, args.green, args.blue), width, height, args.font, args.gradient, args.moving_text, args.fixed_text, args.speed, move, args.once, args.no_fit, args.line_spacing, args.align)
+            DmdPlayer.sendText(header, client, layer, text, (args.red, args.green, args.blue), width, height, args.font, args.gradient, args.moving_text, args.fixed_text, args.speed, move, args.once, args.no_fit, args.line_spacing, args.align, False)
         elif args.clock:
             DmdPlayer.sendClock(header, client, layer, (args.red, args.green, args.blue), width, height, args.font, args.gradient, args.speed, args.h12, args.no_seconds, args.clock_format, args.line_spacing, args.align)
         elif args.countdown:
             DmdPlayer.sendCountdown(header, client, layer, args.countdown, (args.red, args.green, args.blue), width, height, args.font, args.gradient, args.speed, args.countdown_header, args.countdown_format, args.countdown_format_0_day, args.countdown_format_0_hour, args.countdown_format_0_minute, args.line_spacing, args.align)
-        elif feature_video and args.video:
+        elif args.video:
             DmdPlayer.sendVideoFile(header, client, layer, args.video, width, height, args.once)
         elif args.clear:
-            DmdPlayer.sendText(header, client, layer, "", (args.red, args.green, args.blue), width, height, args.font, args.gradient, False, True, args.speed, move, True, False, args.line_spacing, args.align)
+            DmdPlayer.sendText(header, client, layer, "", (args.red, args.green, args.blue), width, height, args.font, args.gradient, False, True, args.speed, move, True, False, args.line_spacing, args.align, False)
 
         if args.overlay:
             time.sleep(args.overlay_time/1000)
@@ -388,4 +399,4 @@ class DmdPlayer:
         client.close()
 
 if __name__ == '__main__':
-    DmdPlayer.run(feature_video)
+    DmdPlayer.run()
