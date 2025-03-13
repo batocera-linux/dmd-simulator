@@ -383,7 +383,7 @@ class DmdPlayer:
                 text = re.sub(r'\\N', '\n', text)
             else:
                 text = args.text
-            DmdPlayer.sendText(header, client, layer, text, (args.red, args.green, args.blue), width, height, args.font, args.gradient, args.moving_text, args.fixed_text, args.speed, move, args.once, args.no_fit, args.line_spacing, args.align, False)
+            DmdPlayer.sendText(header, client, layer, text, (args.red, args.green, args.blue), width, height, args.font, args.gradient, args.moving_text, args.fixed_text, args.speed, move, args.once, args.no_fit, args.line_spacing, args.align, args.moving_text is True and args.fixed_text is False)
         elif args.clock:
             DmdPlayer.sendClock(header, client, layer, (args.red, args.green, args.blue), width, height, args.font, args.gradient, args.speed, args.h12, args.no_seconds, args.clock_format, args.line_spacing, args.align)
         elif args.countdown:
