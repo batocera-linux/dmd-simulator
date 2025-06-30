@@ -11,14 +11,24 @@ from string import Formatter
 
 class DmdPlayer:
 
+    endianness = sys.byteorder
+
     def im2rgb565_fast(im):
         from numpy import array  as nparray
         from numpy import uint16 as npuint16
         data = nparray(im.convert('RGB'))
-        R5 = (data[...,0]>>3).astype(npuint16) << 11
-        G6 = (data[...,1]>>2).astype(npuint16) << 5
-        B5 = (data[...,2]>>3).astype(npuint16)
-        x = R5 | G6 | B5
+        if DmdPlayer.endianness == "big":                        
+            G6r = ((data[...,1]>>2).astype(npuint16) & 0b111)
+            G6l = ((data[...,1]>>2).astype(npuint16) & 0b111000)
+            G6= (G6l >> 3) | (G6r << 14)
+            R5 = (data[...,0]>>3).astype(npuint16) << 3
+            B5 = (data[...,2]>>3).astype(npuint16) << 8
+            x = G6 | R5  | B5
+        else:
+            R5 = (data[...,0]>>3).astype(npuint16) << 11
+            G6 = (data[...,1]>>2).astype(npuint16) << 5
+            B5 = (data[...,2]>>3).astype(npuint16)
+            x = R5 | G6 | B5
         return x.tobytes()
 
     def im2rgb565(im):
@@ -31,7 +41,10 @@ class DmdPlayer:
             for x in range(width):
                 r, g, b = pixels[x, y]
                 rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
-                rgb565_data[n:n+1] = (rgb565 & 0xFF, (rgb565 >> 8) & 0xFF)
+                if DmdPlayer.endianness == "big":
+                    rgb565_data[n+1:n] = (rgb565 & 0xFF, (rgb565 >> 8) & 0xFF)
+                else:
+                    rgb565_data[n:n+1] = (rgb565 & 0xFF, (rgb565 >> 8) & 0xFF)
                 n += 2
         return rgb565_data
 
@@ -41,8 +54,7 @@ class DmdPlayer:
         else:
             return DmdPlayer.im2rgb565(im)
 
-    def getHeader(width, height, layer, nbytes):
-        endianness = sys.byteorder
+    def getHeader(width, height, layer, nbytes):        
         version = 1
         mode    = 3 # rgb565
         if layer == "main":
@@ -52,10 +64,10 @@ class DmdPlayer:
             buffered = 0
             disconnectOthers = 0
         header  = bytearray("DMDStream", "utf-8") + b'\x00'
-        header += version.to_bytes(1, endianness)
-        header += mode   .to_bytes(4, endianness)
-        header += width  .to_bytes(2, endianness) + height.to_bytes(2, endianness) + buffered.to_bytes(1, endianness) + disconnectOthers.to_bytes(1, endianness)
-        header += nbytes .to_bytes(4, endianness)
+        header += version.to_bytes(1, DmdPlayer.endianness)
+        header += mode   .to_bytes(4, DmdPlayer.endianness)
+        header += width  .to_bytes(2, DmdPlayer.endianness) + height.to_bytes(2, DmdPlayer.endianness) + buffered.to_bytes(1, DmdPlayer.endianness) + disconnectOthers.to_bytes(1, DmdPlayer.endianness)
+        header += nbytes .to_bytes(4, DmdPlayer.endianness)
         return header
 
     def sendFrame(header, client, layer, im):
@@ -338,6 +350,7 @@ class DmdPlayer:
         parser.add_argument("--width",  type=int, default=128,         help="dmd width")
         parser.add_argument("--height", type=int, default= 32,         help="dmd height")
         parser.add_argument("--hd",    action="store_true",            help="hd format, equivalent of --width 256 --height 64")
+        parser.add_argument("--endian", type=str,                      help="endian: little, big")
         args = parser.parse_args()
 
         allNone = True
@@ -369,6 +382,8 @@ class DmdPlayer:
         if args.hd:
             width  = 256
             height = 64
+        if args.endian:
+            DmdPlayer.endianness=args.endian            
         header = DmdPlayer.getHeader(width, height, layer, width * height * 2) # RGB565
         if args.move < 1:
             move = 1
