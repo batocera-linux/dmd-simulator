@@ -19,6 +19,7 @@ class DmdPlayer:
         G6 = (data[...,1]>>2).astype(npuint16) << 5
         B5 = (data[...,2]>>3).astype(npuint16)
         x = R5 | G6 | B5
+        x = x.astype('>u2') # big endian
         return x.tobytes()
 
     def im2rgb565(im):
@@ -31,18 +32,20 @@ class DmdPlayer:
             for x in range(width):
                 r, g, b = pixels[x, y]
                 rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
-                rgb565_data[n:n+1] = (rgb565 & 0xFF, (rgb565 >> 8) & 0xFF)
+                #rgb565_data[n:n+1] = (rgb565 & 0xFF, (rgb565 >> 8) & 0xFF) # little endian
+                rgb565_data[n:n+1] = ((rgb565 >> 8) & 0xFF, rgb565 & 0xFF) # big endian
                 n += 2
         return rgb565_data
 
     def imageConvert(im, fastMethod = True):
+        return DmdPlayer.im2rgb565_fast(im)
         if fastMethod:
             return DmdPlayer.im2rgb565_fast(im)
         else:
             return DmdPlayer.im2rgb565(im)
 
     def getHeader(width, height, layer, nbytes):
-        endianness = sys.byteorder
+        endianness = "big"
         version = 1
         mode    = 3 # rgb565
         if layer == "main":
