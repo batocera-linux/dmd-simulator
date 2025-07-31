@@ -304,7 +304,7 @@ class DmdPlayer:
             DmdPlayer.sendText(header, client, layer, txt, color, width, height, fontfile, gradient, False, True, speed, 0, True, False, line_spacing, align)
             time.sleep(speed/1000)
 
-    def run():
+    def args():
         parser = argparse.ArgumentParser(prog="dmd-play")
         parser.add_argument("-f", "--file", help="image path file")
         parser.add_argument("-v", "--video", help="video path file")
@@ -341,8 +341,14 @@ class DmdPlayer:
         parser.add_argument("--width",  type=int, default=128,         help="dmd width")
         parser.add_argument("--height", type=int, default= 32,         help="dmd height")
         parser.add_argument("--hd",    action="store_true",            help="hd format, equivalent of --width 256 --height 64")
-        args = parser.parse_args()
+        return parser.parse_args()
 
+    def connect(args):
+        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client.connect((socket.gethostbyname(args.host), args.port))
+        return client
+
+    def run(args):
         allNone = True
         if args.file is not None:
             allNone = False
@@ -401,5 +407,4 @@ class DmdPlayer:
 
         client.close()
 
-if __name__ == '__main__':
-    DmdPlayer.run()
+      

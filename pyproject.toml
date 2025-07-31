@@ -1,0 +1,36 @@
+[project]
+name = "dmd-simulator"
+version = "0.1"
+requires-python = ">= 3.10"
+dependencies = [
+	     "numpy>=2.2.6",
+	     "aiohttp>=3.12.15",
+	     "websockets>=15.0.1",
+	     "pillow>=11.3.0",
+	     "pysdl2>=0.9.17"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.scripts]
+dmd-play      = "dmd_simulator.cli.dmd_play:dmd_play_launch"
+dmd-simulator = "dmd_simulator.cli.dmd_simulator:dmd_simulator_launch"
+# games
+dmd-tetris    = "dmd_simulator.cli.games.dmd_tetris:dmd_tetris_launch"
+
+[tool.hatch.version]
+source = "code"
+path = "_version.py"
+
+[tool.hatch.build.targets.wheel]
+include = [
+    "dmd_simulator"
+]
+
+[tool.pyright]
+extends = "../../../../../pyproject.toml"
+
+[tool.ruff]
+extend = "../../../../../pyproject.toml"

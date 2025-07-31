@@ -229,7 +229,7 @@ class DmdSimulator():
         except:
             pass
 
-if __name__ == '__main__':
+def dmd_simulator_launch() -> None:
     parser = argparse.ArgumentParser(prog="dmd-simulator")
     parser.add_argument("--width",    type=int, default=128,         help="virtual dmd width")
     parser.add_argument("--height",   type=int, default= 32,         help="virtual dmd height")
@@ -242,3 +242,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     asyncio.run(DmdSimulator.run(args.width, args.height, args.dmd_host, args.dmd_port, args.web_host, args.web_port, args.ws_host, args.ws_port))
+
+if __name__ == '__main__':
+    dmd_simulator_launch()

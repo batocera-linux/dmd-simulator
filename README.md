@@ -7,13 +7,19 @@ dmd-play and dmd-simulator communicates via a tcp connexion.
 
 dmd-simulator and the browser communicates via websockets.
 
+dmd-tetris is a tetris game your can play with a pad.
+
 # build
-``$ docker build -t dmd-simulator .``
+``$ virtualenv venv``
+
+``$ source venv/bin/activate``
+
+``$ pip install .``
 
 # execute
-``$ docker run -ti -p 6789:6789 -p 6790:6790 -p 8080:8080 dmd-simulator``
+``$ dmd-simulator``
 or
-``$ docker run -ti -p 6789:6789 -p 6790:6790 -p 8080:8080 -e DMD_WIDTH=64 -e DMD_HEIGHT=64 dmd-simulator``
+``$ DMD_WIDTH=64 DMD_HEIGHT=64 dmd-simulator``
 
 run in browser : http://localhost:8080/?size=12&top=200&mode=led
 
