@@ -19,6 +19,7 @@ dmd-play      = "dmd_simulator.cli.dmd_play:dmd_play_launch"
 dmd-simulator = "dmd_simulator.cli.dmd_simulator:dmd_simulator_launch"
 # games
 dmd-tetris    = "dmd_simulator.cli.games.dmd_tetris:dmd_tetris_launch"
+dmd-snake     = "dmd_simulator.cli.games.dmd_snake:dmd_snake_launch"
 
 [tool.hatch.version]
 source = "code"
