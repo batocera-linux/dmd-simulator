@@ -12,7 +12,7 @@ from random import randint
 from PIL import Image, ImageDraw
 from dmd_simulator.dmd_player import DmdPlayer
 from dmd_simulator.dmd_font import DmdFont
-from importlib import resources as impresources
+from dmd_simulator.dmd_game import DmdGame
 import time
 import sdl2
 
@@ -26,16 +26,9 @@ colors = [
     (255,   0, 255),
 ]
 
-class DMDConf:
-    port=6789
-    host="localhost"
-    width=128
-    height=32    
-    bock_size=4
-    x_shift=1
-    y_shift=23    
-    width_blocks=math.floor(width/bock_size)
-    height_blocks=math.floor(height/bock_size)
+WHITE = (255, 255, 255)
+
+
 
 class Field:
     def __init__(self, width, height):
@@ -76,22 +69,21 @@ class Field:
             for x in range(self.width):
                 if self.field[x][y] == 3:
                     return [x, y]
-
         return [-1, -1]
-
 
     def is_snake_eat_entity(self):
         entity = self.get_entity_pos()
         head = self.snake_coords[-1]
         return entity == head
 
-class Snake:
-    def __init__(self, width, height,speed):
-        self.height = height
-        self.width = width        
-        self.direction = 0
-        self.speed=speed
+class Snake(DmdGame):
+    def __init__(self,game_name,font_ld,font_hd):
+        super().__init__(game_name,font_ld,font_hd)
+
+        self.width_blocks=math.floor(self.width/self.block_size)
+        self.height_blocks=math.floor(self.height/self.block_size)
         self.alive=True
+        self.direction = 0        
         # directions:
         # - 0: right
         # - 1: up
@@ -123,7 +115,7 @@ class Snake:
         tail = self._check_limit(tail)
         self.coords.insert(0, tail)
 
-        self.speed=self.speed*0.95
+        self.speed=self.speed*self.acceleration
 
     def is_alive(self):
         head = self.coords[-1]
@@ -132,13 +124,13 @@ class Snake:
 
     def _check_limit(self, point):
         # Check field limit
-        if point[0] > self.width-1:
+        if point[0] > self.width_blocks-1:
             point[0] = 0
         elif point[0] < 0:
-            point[0] = self.width -1
+            point[0] = self.width_blocks -1
         elif point[1] < 0:
-            point[1] = self.height -1
-        elif point[1] > self.height-1:
+            point[1] = self.height_blocks -1
+        elif point[1] > self.height_blocks-1:
             point[1] = 0
         return point
 
@@ -173,144 +165,74 @@ class Snake:
     def set_field(self, field):
         self.field = field
     
-    def args():
-        return DMDConf
+    def args(self,parser):        
+        super().args(parser)            
+        parser.add_argument("--block_size",     type=int,   default=4,      help="game block size in pixels (default 4)")
+        parser.add_argument("--speed",          type=float, default=0.3,    help="Initial speed in seconds (default 0.3)")
+        parser.add_argument("--acceleration",   type=float, default=0.95,   help="Acceleration speed=speed*acceleration (default 0.95)")
 
+    def drawScore(self):
+        txt="Score"
+        self.font.puttext(self.frame,txt,0,round((self.width-(len(txt)-1)*6)/2),2,WHITE)
+        txt=str(len(self.field.snake_coords)-4)
+        self.font.puttext(self.frame,txt,0,round((self.width-(len(txt)-1)*6)/2),12,WHITE)         
 
-def dmd_snake_launch() -> None:
-    conf=Snake.args()
-    client=DmdPlayer.connect(conf)
-    width  = conf.width
-    height = conf.height
-    layer = "main"
-    header = DmdPlayer.getHeader(width, height, layer, width * height * 2) # RGB565
-    dmdresroot = impresources.files("dmd_simulator")
-    dmdrespath = dmdresroot.joinpath("data/snake")    
+    def drawGameOver(self):
+        txt="Game Over"
+        self.font.puttext(self.frame,txt,0,round((self.width-(len(txt)-1)*6)/2),20,WHITE)
+        
 
-    dmdfont=DmdFont("minogram_6x10")
+def dmd_snake_launch() -> None:    
+    snake=Snake("snake","minogram_6x10","minogram_6x10")
 
-    # Define some colors
-    WHITE = (255, 255, 255)
-
-    # Init snake & field
-    field = Field(conf.width_blocks, conf.height_blocks)
-    snake = Snake(conf.width_blocks, conf.height_blocks,0.3)
+    # Init field
+    field = Field(snake.width_blocks, snake.height_blocks)
     snake.set_field(field)
-
-    joysticks = {}
-
-    DmdPlayer.sendImageFile(header,client,0,dmdrespath.joinpath("dmd-snake.png"),128,32,True)
-
-    sdl2.SDL_Init(sdl2.SDL_INIT_JOYSTICK | sdl2.SDL_INIT_GAMECONTROLLER)
-
-    time.sleep(2)
     
-    pressing_left=False
-    pressing_right=False
     while snake.alive:
-        event = sdl2.SDL_Event()
-        while sdl2.SDL_PollEvent(event) != 0:
-            if event.type == sdl2.SDL_QUIT:
-                done = True
-            # If some arrows did pressed - change direction
-            # snake.set_direction(ch)
-            if (event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_DPAD_LEFT) and (not pressing_left):
-                snake.set_direction(+1)
-                pressing_left=True
-            if (event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_DPAD_RIGHT) and (not pressing_right):
-                snake.set_direction(-1)
-                pressing_right=True
+        snake.controller.pollEvent()
 
-            if event.type == sdl2.SDL_CONTROLLERBUTTONUP:
-                if event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_DPAD_LEFT:
-                    pressing_left=False
-                if event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
-                    pressing_right=False
-
-            if event.type == sdl2.SDL_CONTROLLERDEVICEADDED:
-                joy = sdl2.SDL_GameControllerOpen(event.cdevice.which)
-                if joy:
-                    joysticks[event.cdevice.which] = joy
-
-            if event.type == sdl2.SDL_CONTROLLERDEVICEREMOVED:
-                del joysticks[event.cdevice.which]
-
-            if event.type == sdl2.SDL_JOYHATMOTION:
-                if sdl2.SDL_IsGameController(event.jdevice.which) == False:
-                    if event.jhat.hat == 0:
-                        if event.jhat.value == 8: # left
-                            snake.set_direction(+1)
-                            pressing_left=True
-                            pressing_right=False
-                        elif event.jhat.value == 2: # right
-                            snake.set_direction(-1)
-                            pressing_right=True
-                            pressing_left=False
-                        elif event.jhat.value == 1 or event.jhat.value == 0:
-                            pressing_left=False
-                            pressing_right=False
-
-            if event.type == sdl2.SDL_JOYDEVICEADDED:
-                if sdl2.SDL_IsGameController(event.jdevice.which) == False:
-                    joy = sdl2.SDL_JoystickOpen(event.jdevice.which)
-                    if joy:
-                        joysticks[event.jdevice.which] = joy
-
-            if event.type == sdl2.SDL_JOYDEVICEREMOVED:
-                if sdl2.SDL_IsGameController(event.jdevice.which) == False:
-                    del joysticks[event.jdevice.which]            
+        if (snake.controller.LeftWasPressed()):
+            snake.set_direction(+1)
+        
+        if (snake.controller.RightWasPressed()):
+            snake.set_direction(-1)
 
         # Move snake
         snake.move()
         
         # Render field
         field.render()
+        snake.newFrame()
 
-        im = Image.new("RGBA", (width, height))
-        txt="Score"
-        dmdfont.puttext(im,txt,0,round((width-(len(txt)-1)*6)/2),2,WHITE)
-        txt=str(len(field.snake_coords)-4)
-        dmdfont.puttext(im,txt,0,round((width-(len(txt)-1)*6)/2),12,WHITE)       
+        im=snake.frame
 
-        for y in range(conf.height_blocks):
-            for x in range(conf.width_blocks):
+        for y in range(snake.height_blocks):
+            for x in range(snake.width_blocks):
                 if (field.field[x][y]!=0):
-                    for a in range(conf.bock_size):
-                        for b in range(conf.bock_size):
-                            im.putpixel((x*conf.bock_size+a, y*conf.bock_size+b), colors[field.field[x][y]])                
+                    for a in range(snake.block_size):
+                        for b in range(snake.block_size):
+                            im.putpixel((x*snake.block_size+a, y*snake.block_size+b), colors[field.field[x][y]])                
                 if (field.field[x][y]==2):
                     if (snake.direction==0):
-                        im.putpixel((x*conf.bock_size+conf.bock_size-1, y*conf.bock_size), colors[0])
-                        im.putpixel((x*conf.bock_size+conf.bock_size-1, y*conf.bock_size+conf.bock_size-1), colors[0])
+                        im.putpixel((x*snake.block_size+snake.block_size-1, y*snake.block_size), colors[0])
+                        im.putpixel((x*snake.block_size+snake.block_size-1, y*snake.block_size+snake.block_size-1), colors[0])
                     elif (snake.direction==1):
-                        im.putpixel((x*conf.bock_size, y*conf.bock_size), colors[0])
-                        im.putpixel((x*conf.bock_size+conf.bock_size-1, y*conf.bock_size), colors[0])
+                        im.putpixel((x*snake.block_size, y*snake.block_size), colors[0])
+                        im.putpixel((x*snake.block_size+snake.block_size-1, y*snake.block_size), colors[0])
                     elif (snake.direction==2):
-                        im.putpixel((x*conf.bock_size, y*conf.bock_size), colors[0])
-                        im.putpixel((x*conf.bock_size, y*conf.bock_size+conf.bock_size-1), colors[0])
+                        im.putpixel((x*snake.block_size, y*snake.block_size), colors[0])
+                        im.putpixel((x*snake.block_size, y*snake.block_size+snake.block_size-1), colors[0])
                     elif (snake.direction==3):
-                        im.putpixel((x*conf.bock_size, y*conf.bock_size+conf.bock_size-1), colors[0])
-                        im.putpixel((x*conf.bock_size+conf.bock_size-1, y*conf.bock_size+conf.bock_size-1), colors[0])
-        DmdPlayer.sendFrame(header, client, layer, DmdPlayer.imageConvert(im, True))
-
+                        im.putpixel((x*snake.block_size, y*snake.block_size+snake.block_size-1), colors[0])
+                        im.putpixel((x*snake.block_size+snake.block_size-1, y*snake.block_size+snake.block_size-1), colors[0])        
+        snake.displayScore()
+        snake.sendFrame()
         time.sleep(snake.speed)
 
-    txt="Score"
-    dmdfont.puttext(im,txt,0,round((width-(len(txt)-1)*6)/2),2,WHITE)
-    txt=str(len(field.snake_coords)-4)
-    dmdfont.puttext(im,txt,0,round((width-(len(txt)-1)*6)/2),12,WHITE)       
-    txt="Game Over"
-    dmdfont.puttext(im,txt,0,round((width-(len(txt)-1)*6)/2),20,WHITE)    
+    snake.displayGameOver()
+    snake.end()
 
-
-    DmdPlayer.sendFrame(header, client, layer, DmdPlayer.imageConvert(im, True))
-
-    client.close()
-    for joystick in joysticks:
-        if sdl2.SDL_IsGameController(joystick):
-            sdl2.SDL_GameControllerClose(joysticks[joystick])
-        else:
-            sdl2.SDL_JoystickClose(joysticks[joystick])
     
 if __name__ == '__main__':
     dmd_snake_launch()
