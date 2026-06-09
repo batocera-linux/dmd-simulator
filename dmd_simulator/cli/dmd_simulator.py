@@ -13,6 +13,7 @@ class DmdSimulator():
 
     def im2rgb888(im):
         data = np.frombuffer(im, dtype=np.uint16)
+        data = data.byteswap()
         R8 = ((data >> 11) << 3).astype(np.uint8)
         G8 = (((data << 5) >> 10) << 2).astype(np.uint8)
         B8 = ((data << 11) >> 8).astype(np.uint8)
@@ -150,7 +151,7 @@ class DmdSimulator():
         while True:
             try:
                 requestHeader = (await reader.readexactly(25))
-                endianness = sys.byteorder
+                endianness = "big"
                 hcode = requestHeader[0:10]
                 if hcode != bytearray("DMDStream", "utf-8") + b'\x00':
                     raise Exception("invalid header")
@@ -196,7 +197,7 @@ class DmdSimulator():
                             await DmdSimulator.wsclient.send(frame)
                     except:
                         pass
-            except:
+            except Exception as e:
                 if DmdSimulator.dmdclient_main == writer:
                     DmdSimulator.dmdclient_main  = None
                 if DmdSimulator.dmdclient_layer == writer:
