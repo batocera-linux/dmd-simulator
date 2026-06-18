@@ -6,10 +6,13 @@
 from PIL import Image, ImageDraw
 from dmd_simulator.dmd_player import DmdPlayer
 from dmd_simulator.dmd_font import DmdFont
+from dmd_simulator.dmd_game import DmdGame
 import random
 from importlib import resources as impresources
 import time
 import sdl2
+import argparse
+
 
 colors = [
     (  0,   0,   0),
@@ -48,30 +51,17 @@ class Figure:
     def rotate(self):
         self.rotation = (self.rotation + 1) % len(self.figures[self.type])
 
-class DMDConf:
-    port=6789
-    host="localhost"
-    width=128
-    height=32    
-    bock_size=3
-    x_shift=1
-    y_shift=23
-    height_blocks=34
-    width_blocks=10
 
-class Tetris:
+
+class Tetris(DmdGame):
     def __init__(self, width, height):
         self.level = 1
         self.score = 0
         self.state = "start"
         self.field = []
-        self.height = 0
-        self.width = 0
         self.x = 100
         self.y = 60
-        self.zoom = 20
-        self.figure = None
-    
+        self.figure = None    
         self.height = height
         self.width = width
         self.field = []
@@ -145,11 +135,28 @@ class Tetris:
         if self.intersects():
             self.figure.rotation = old_rotation
 
-    def args():
-        return DMDConf
+    def args(self,parser):        
+        super().args(self,parser)            
+        parser.add_argument("--block_size", type=int, default= 3,         help="game block size in pixels (default 3)")
+
+    def conf(self,progName):
+        parser = argparse.ArgumentParser(prog=progName)
+        self.args(self,parser)
+
+        conf=parser.parse_args()
+        if conf.hd:
+            conf.width  = 256
+            conf.height = 64   
+ 
+        conf.x_shift=1
+        conf.y_shift=23
+        conf.height_blocks=34
+        conf.width_blocks=10
+
+        return conf
 
 def dmd_tetris_launch() -> None:
-    conf=Tetris.args()
+    conf=Tetris.conf(Tetris,"dmd_tetris.py")
     client=DmdPlayer.connect(conf)
     width  = conf.width
     height = conf.height
@@ -279,18 +286,18 @@ def dmd_tetris_launch() -> None:
         for i in range(game.height):
             for j in range(game.width):                
                 if game.field[i][j] > 0:
-                    for a in range(conf.bock_size):
-                        for b in range(conf.bock_size):
-                            im.putpixel((width - conf.bock_size - (i*conf.bock_size+a)-conf.y_shift, j*conf.bock_size+b+conf.x_shift), colors[game.field[i][j]])
+                    for a in range(conf.block_size):
+                        for b in range(conf.block_size):
+                            im.putpixel((width - conf.block_size - (i*conf.block_size+a)-conf.y_shift, j*conf.block_size+b+conf.x_shift), colors[game.field[i][j]])
         
         if game.figure is not None:
             for i in range(4):
                 for j in range(4):
                     p = i * 4 + j
                     if p in game.figure.image():
-                        for a in range(conf.bock_size):
-                            for b in range(conf.bock_size):
-                                im.putpixel((width - conf.bock_size - ((i + game.figure.y)*conf.bock_size+a)-conf.y_shift, (j + game.figure.x)*conf.bock_size+b+conf.x_shift), colors[game.figure.color])
+                        for a in range(conf.block_size):
+                            for b in range(conf.block_size):
+                                im.putpixel((width - conf.block_size - ((i + game.figure.y)*conf.block_size+a)-conf.y_shift, (j + game.figure.x)*conf.block_size+b+conf.x_shift), colors[game.figure.color])
 
         dmdfont.puttext(im,"Score",1,116,1,WHITE)
 
